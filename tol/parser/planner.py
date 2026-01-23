@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple, Set
 
 
 @dataclass
@@ -10,6 +10,7 @@ class PlannedAction:
     quantity: Optional[str] = None
     percent: Optional[float] = None
     using: List[str] = None
+    using_classified: List[Tuple[str, str]] = None
     derived_id: str = ""
     depends_on: List[str] = None
 
@@ -42,9 +43,9 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
         else:
             seen_ids[derived_id] = 0
 
-        using = body.get("using", [])
-        if using is None:
-            using = []
+        using = body.get("using")
+        if not using:
+            using = ["CASH"]
 
         action = PlannedAction(
             index=idx,
@@ -59,17 +60,18 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
 
         actions.append(action)
 
-    # Infer dependencies
     id_map = {a.derived_id: a for a in actions}
+    action_ids = set(id_map.keys())
 
     for action in actions:
+        action.using_classified = []
         for source in action.using:
-            if is_cash(source):
-                continue
-            elif is_action_reference(source, id_map):
+            source_type = classify_source(source, action_ids)
+            action.using_classified.append((source, source_type))
+
+            if source_type == "action":
                 action.depends_on.append(source)
-            elif is_holding(source):
-                # Valid portfolio holding; resolved at execution time
+            elif source_type in ("cash", "holding"):
                 continue
             else:
                 raise ValueError(
@@ -89,3 +91,13 @@ def is_cash(source):
 
 def is_holding(source):
     return source.isalpha() and source.isupper()
+
+
+def classify_source(source: str, action_ids: Set[str]) -> str:
+    if source == "CASH":
+        return "cash"
+    if source in action_ids:
+        return "action"
+    if source.isalpha() and source.isupper():
+        return "holding"
+    return "unknown"
