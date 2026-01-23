@@ -4,7 +4,7 @@ broker:
   mode: paper
   currency: USD
 
-vars:
+settings:
   slippage: 0.005
   rounding: FLOOR
   order_type: MKT
