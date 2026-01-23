@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 
 from tol.parser.planner import plan_actions
+from tol.parser.dag import compute_execution_levels
 
 
 def build_parser():
@@ -46,6 +47,18 @@ def build_parser():
         )
     )
 
+    check_parser = subparsers.add_parser(
+        "check",
+        help="Check portfolio holdings and pricing via IBKR API"
+    )
+
+    check_parser.add_argument(
+        "--mode",
+        choices=["paper", "live"],
+        required=True,
+        help="Broker mode to check (paper or live)"
+    )
+
     return parser
 
 
@@ -55,6 +68,8 @@ def main():
 
     if args.command == "run":
         handle_run(args)
+    elif args.command == "check":
+        handle_check(args)
     else:
         parser.error("Unknown command")
 
@@ -147,3 +162,48 @@ def handle_run(args):
                 print(f"      - {source:<10} ({kind})")
         if action.depends_on:
             print(f"    depends_on  : {action.depends_on}")
+
+    levels = compute_execution_levels(actions)
+
+    print()
+    print("Execution plan:")
+    print()
+
+    for level_num, level in enumerate(levels, start=1):
+        for action_id in level:
+            prefix = f"{level_num}=" if len(level) > 1 else f"{level_num} "
+            print(f"{prefix} {action_id}")
+
+            action = next(a for a in actions if a.derived_id == action_id)
+            if action.depends_on:
+                print("     depends on:")
+                for dep in action.depends_on:
+                    print(f"        - {dep}")
+        print()
+
+
+def handle_check(args):
+    mode = args.mode
+
+    print("TOL Portfolio Check")
+    print("-" * 40)
+    print(f"Mode: {mode}")
+    print()
+
+    print("This command would:")
+    print("• Connect to the IBKR gateway")
+    print("• Authenticate using configured credentials")
+    print("• Query account summary (cash, net liquidation value)")
+    print("• Query open positions (ticker, quantity)")
+    print("• Query current market prices")
+    print()
+    print("Output would be used for:")
+    print("• Sanity checking TOL quantities")
+    print("• Dry-run portfolio validation")
+    print("• GUI inspection and debugging")
+    print()
+    print("NOTE:")
+    print("• API integration not yet implemented")
+    print("• No state has been persisted")
+    print("-" * 40)
+

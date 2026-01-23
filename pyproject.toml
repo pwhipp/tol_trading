@@ -8,5 +8,9 @@ version = "0.1.0"
 description = "Trading Orchestration Language CLI"
 requires-python = ">=3.12"
 
+dependencies = [
+    "ib-insync>=0.9.86"
+]
+
 [project.scripts]
 tol = "tol.cli:main"
