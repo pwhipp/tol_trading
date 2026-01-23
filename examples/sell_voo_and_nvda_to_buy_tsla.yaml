@@ -1,0 +1,23 @@
+version: 1
+
+broker:
+  mode: paper
+  currency: USD
+
+vars:
+  slippage: 0.005        # 0.5%
+  rounding: FLOOR        # explicit policy
+
+actions:
+  - sell:
+      symbol: VOO
+      quantity: 100
+
+  - sell:
+      symbol: NVDA
+      quantity: 100
+
+  - buy:
+      symbol: TSLA
+      using: [sellVOO, sellNVDA]
+      quantity: ALL

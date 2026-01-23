@@ -1,0 +1,22 @@
+version: 1
+
+broker:
+  mode: paper
+  currency: USD
+
+vars:
+  slippage: 0.005        # 0.5%
+  rounding: FLOOR        # explicit policy
+
+actions:
+  - sell:
+      symbol: NVDA
+      quantity: ALL
+  - buy:
+      symbol: TSLA
+      using: [sellNVDA]
+      quantity: 60%
+  - buy:
+      symbol: TSM
+      using: [sellNVDA]
+      quantity: 40%

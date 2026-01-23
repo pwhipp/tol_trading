@@ -1,0 +1,13 @@
+broker:
+  mode: paper
+  currency: USD
+
+actions:
+  - target:
+      symbol: TSLA
+      percent: 10%
+      using: [CASH, NVDA]
+  - target:
+      symbol: TSM
+      percent: 10%
+      using: [CASH, NVDA]

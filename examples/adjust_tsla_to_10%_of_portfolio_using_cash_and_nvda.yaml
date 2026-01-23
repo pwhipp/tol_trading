@@ -1,0 +1,15 @@
+version: 1
+
+broker:
+  mode: paper
+  currency: USD
+
+vars:
+  slippage: 0.005        # 0.5%
+  rounding: FLOOR        # explicit policy
+
+actions:
+  - target:
+      symbol: TSLA
+      percent: 10%
+      using: [CASH, NVDA]
