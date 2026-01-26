@@ -9,7 +9,8 @@ description = "Trading Orchestration Language CLI"
 requires-python = ">=3.12"
 
 dependencies = [
-    "ib-insync>=0.9.86"
+    "ib-insync>=0.9.86",
+    "tzdata>=2025.3"
 ]
 
 [project.scripts]

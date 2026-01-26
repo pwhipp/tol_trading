@@ -5,6 +5,7 @@ import yaml
 
 from tol.parser.planner import plan_actions
 from tol.parser.dag import compute_execution_levels
+from tol.ibkr.gateway import IBKRGateway
 
 
 def build_parser():
@@ -182,28 +183,78 @@ def handle_run(args):
         print()
 
 
+from collections import defaultdict
+from decimal import Decimal, ROUND_HALF_UP
+
+
+def pct(value, total):
+    if total == 0:
+        return Decimal("0")
+    return (value / total * Decimal("100")).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+
+
 def handle_check(args):
-    mode = args.mode
+    gw = IBKRGateway(args.mode)
 
     print("TOL Portfolio Check")
-    print("-" * 40)
-    print(f"Mode: {mode}")
+    print("----------------------------------------")
+    print(f"Mode: {args.mode}")
     print()
 
-    print("This command would:")
-    print("• Connect to the IBKR gateway")
-    print("• Authenticate using configured credentials")
-    print("• Query account summary (cash, net liquidation value)")
-    print("• Query open positions (ticker, quantity)")
-    print("• Query current market prices")
-    print()
-    print("Output would be used for:")
-    print("• Sanity checking TOL quantities")
-    print("• Dry-run portfolio validation")
-    print("• GUI inspection and debugging")
-    print()
-    print("NOTE:")
-    print("• API integration not yet implemented")
-    print("• No state has been persisted")
-    print("-" * 40)
+    gw.connect()
+    try:
+        cash_by_ccy = gw.get_cash_by_currency()
+        positions = gw.get_positions()
+    finally:
+        gw.disconnect()
 
+    # ---- totals by currency ----
+    position_totals = defaultdict(Decimal)
+    for p in positions:
+        position_totals[p["currency"]] += p["market_value"]
+
+    portfolio_totals = defaultdict(Decimal)
+    for ccy, amt in cash_by_ccy.items():
+        portfolio_totals[ccy] += amt
+    for ccy, amt in position_totals.items():
+        portfolio_totals[ccy] += amt
+
+    # ---- output ----
+    print("Cash:")
+    for ccy in sorted(cash_by_ccy):
+        amt = cash_by_ccy[ccy]
+        total = portfolio_totals[ccy]
+        print(
+            f"  {ccy}: {amt:>12,.2f}   "
+            f"{pct(amt, total):>6}%"
+        )
+
+    print()
+    print("Positions:")
+    for p in sorted(positions, key=lambda x: x["symbol"]):
+        sym = p["symbol"]
+        qty = p["quantity"]
+        mv = p["market_value"]
+        ccy = p["currency"]
+        total = portfolio_totals[ccy]
+
+        print(
+            f"  {sym:<5} "
+            f"{int(qty):>6} shares   "
+            f"≈ {mv:>12,.2f} {ccy}   "
+            f"{pct(mv, total):>6}%"
+        )
+
+    print()
+    print("Positions value:")
+    for ccy in sorted(portfolio_totals):
+        mv = position_totals.get(ccy, Decimal("0"))
+        total = portfolio_totals[ccy]
+        print(
+            f"  {ccy}: {mv:>12,.2f}   "
+            f"{pct(mv, total):>6}%"
+        )
+
+    print("----------------------------------------")
