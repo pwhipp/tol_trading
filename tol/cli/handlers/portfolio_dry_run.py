@@ -45,6 +45,17 @@ class ActionEvaluation:
     messages: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    planned_trades: list["PlannedTrade"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class PlannedTrade:
+    action_id: str
+    action_type: str
+    symbol: str
+    quantity: Decimal
+    price: Decimal
+    currency: str
 
 
 def normalize_quantity(quantity: object) -> Optional[QuantitySpec]:
@@ -145,6 +156,23 @@ def build_portfolio_report(
             lines.append(f"  - WARNING: {warning}")
         for error in evaluation.errors:
             lines.append(f"  - ERROR: {error}")
+    lines.append("")
+    lines.append("Planned trades:")
+    planned_trades = [
+        trade
+        for evaluation in evaluations
+        for trade in evaluation.planned_trades
+    ]
+    if not planned_trades:
+        lines.append("  (none)")
+        return lines
+    for trade in planned_trades:
+        lines.append(
+            "• "
+            f"{trade.action_id} {trade.action_type.upper()} "
+            f"{trade.symbol} {trade.quantity} @ "
+            f"{trade.price:,.2f} {trade.currency}"
+        )
     return lines
 
 
@@ -200,6 +228,17 @@ def _evaluate_sell(
         evaluation.messages.append(
             f"Estimated proceeds: {required_qty * position.price:,.2f} {position.currency}."
         )
+        if not evaluation.errors:
+            evaluation.planned_trades.append(
+                PlannedTrade(
+                    action_id=action.derived_id,
+                    action_type="sell",
+                    symbol=action.symbol,
+                    quantity=required_qty,
+                    price=position.price,
+                    currency=position.currency,
+                )
+            )
 
 
 def _evaluate_buy(
@@ -270,6 +309,20 @@ def _evaluate_buy(
         evaluation.messages.append(
             f"Estimated shares: {required_shares}."
         )
+        if price is not None and not evaluation.errors:
+            evaluation.planned_trades.append(
+                PlannedTrade(
+                    action_id=action.derived_id,
+                    action_type="buy",
+                    symbol=action.symbol,
+                    quantity=required_shares,
+                    price=price,
+                    currency=(
+                        expected_currency
+                        or (position.currency if position else "USD")
+                    ),
+                )
+            )
     elif price is None:
         evaluation.warnings.append(
             "Unable to estimate shares without a market price."
@@ -327,6 +380,17 @@ def _evaluate_target(
         evaluation.messages.append(
             f"Implied {direction} of {shares:.4f} shares."
         )
+        if shares != 0 and not evaluation.errors:
+            evaluation.planned_trades.append(
+                PlannedTrade(
+                    action_id=action.derived_id,
+                    action_type=direction,
+                    symbol=action.symbol,
+                    quantity=abs(shares),
+                    price=price,
+                    currency=current_position.currency if current_position else "USD",
+                )
+            )
     else:
         evaluation.warnings.append(
             "Unable to estimate target shares without a market price."

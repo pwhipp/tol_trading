@@ -27,6 +27,8 @@ class BrokerGateway(Protocol):
         quantity: Decimal,
     ) -> dict: ...
 
+    def get_market_snapshot(self, contract: object) -> dict: ...
+
 
 @dataclass
 class BrokerValidation:
@@ -36,6 +38,17 @@ class BrokerValidation:
     messages: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    planned_trades: list["PlannedTrade"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class PlannedTrade:
+    action_id: str
+    action_type: str
+    symbol: str
+    quantity: Decimal
+    price: Decimal
+    currency: str
 
 
 def run_broker_dry_run(
@@ -65,6 +78,23 @@ def build_broker_report(
             lines.append(f"  - WARNING: {warning}")
         for error in result.errors:
             lines.append(f"  - ERROR: {error}")
+    lines.append("")
+    lines.append("Planned trades:")
+    planned_trades = [
+        trade
+        for result in results
+        for trade in result.planned_trades
+    ]
+    if not planned_trades:
+        lines.append("  (none)")
+        return lines
+    for trade in planned_trades:
+        lines.append(
+            "• "
+            f"{trade.action_id} {trade.action_type.upper()} "
+            f"{trade.symbol} {trade.quantity} @ "
+            f"{trade.price:,.2f} {trade.currency}"
+        )
     return lines
 
 
@@ -90,6 +120,11 @@ def validate_action_with_broker(
         quantity = _resolve_share_quantity(action.quantity, validation)
         if quantity is None:
             return validation
+        market_snapshot = _resolve_market_snapshot(
+            gateway,
+            contract,
+            validation,
+        )
         _validate_order_with_gateway(
             gateway,
             contract,
@@ -97,6 +132,13 @@ def validate_action_with_broker(
             quantity,
             validation,
         )
+        if market_snapshot:
+            _append_planned_trade(
+                action,
+                quantity,
+                market_snapshot,
+                validation,
+            )
     elif action.action_type == "target":
         validation.warnings.append(
             "Target actions require portfolio context to derive shares."
@@ -165,6 +207,50 @@ def _resolve_share_quantity(
         return _coerce_decimal(raw, validation)
     validation.errors.append("Unsupported quantity type.")
     return None
+
+
+def _resolve_market_snapshot(
+    gateway: BrokerGateway,
+    contract: object,
+    validation: BrokerValidation,
+) -> Optional[dict]:
+    try:
+        snapshot = gateway.get_market_snapshot(contract)
+    except Exception as exc:  # pragma: no cover - broker issues
+        validation.warnings.append(f"Failed to retrieve market price: {exc}.")
+        return None
+    price = snapshot.get("price") if isinstance(snapshot, dict) else None
+    if price is None:
+        validation.warnings.append("Market price unavailable for trade preview.")
+        return None
+    is_open = snapshot.get("is_open") if isinstance(snapshot, dict) else None
+    if is_open is False:
+        validation.warnings.append(
+            "Market appears closed; using last known price."
+        )
+    currency = snapshot.get("currency") if isinstance(snapshot, dict) else None
+    snapshot["currency"] = currency or "USD"
+    return snapshot
+
+
+def _append_planned_trade(
+    action: PlannedAction,
+    quantity: Decimal,
+    snapshot: dict,
+    validation: BrokerValidation,
+) -> None:
+    if validation.errors:
+        return
+    validation.planned_trades.append(
+        PlannedTrade(
+            action_id=action.derived_id,
+            action_type=action.action_type,
+            symbol=action.symbol,
+            quantity=quantity,
+            price=snapshot["price"],
+            currency=snapshot["currency"],
+        )
+    )
 
 
 def _coerce_decimal(
