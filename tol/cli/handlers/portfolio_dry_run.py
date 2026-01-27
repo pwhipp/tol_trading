@@ -122,9 +122,7 @@ def build_portfolio_report(
     snapshot: PortfolioSnapshot,
     evaluations: Iterable[ActionEvaluation],
 ) -> list[str]:
-    lines: list[str] = []
-    lines.append("Portfolio snapshot:")
-    lines.append("Cash:")
+    lines: list[str] = ["Portfolio snapshot:", "Cash:"]
     for ccy in sorted(snapshot.cash_by_currency):
         amt = snapshot.cash_by_currency[ccy]
         lines.append(f"  {ccy}: {amt:,.2f}")

@@ -21,7 +21,7 @@ def load_tol(path: Path) -> dict[str, Any]:
 
 def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
     if len(action) != 1:
-        return action
+        raise ValueError("action must be a dict with a single key specifying buy/sell/target")
 
     action_type, body = next(iter(action.items()))
     if not isinstance(body, dict):
