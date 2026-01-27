@@ -3,10 +3,9 @@ from pathlib import Path
 
 
 def handle_run(args) -> None:
-    import yaml
-
     from tol.parser.dag import compute_execution_levels
     from tol.parser.planner import plan_actions
+    from tol.load import load_tol
 
     tol_file: Path = args.tol_file
     mode = args.mode
@@ -76,10 +75,19 @@ def handle_run(args) -> None:
     print("Derived execution plan:")
     print("-" * 20)
 
-    with tol_file.open("r", encoding="utf-8") as file_handle:
-        tol_doc = yaml.safe_load(file_handle)
-
+    tol_doc = load_tol(tol_file)
     actions = plan_actions(tol_doc)
+
+    if dry_run == "portfolio":
+        from tol.cli.handlers.portfolio_dry_run import run_portfolio_dry_run
+
+        print()
+        print("Portfolio dry run:")
+        print("-" * 20)
+        report_lines = run_portfolio_dry_run(actions, mode)
+        for line in report_lines:
+            print(line)
+        print()
 
     for action in actions:
         print(f"• {action.derived_id}")
