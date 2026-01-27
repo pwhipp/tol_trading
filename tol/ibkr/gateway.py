@@ -70,6 +70,7 @@ class IBKRGateway:
         return {"status": status}
 
     def get_market_snapshot(self, contract) -> dict:
+        self.ib.reqMarketDataType(3)
         ticker = self.ib.reqMktData(contract, "", False, False)
         self.ib.sleep(1)
         last = self._safe_decimal(getattr(ticker, "last", None))
