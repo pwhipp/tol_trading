@@ -1,5 +1,19 @@
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import List, Optional, Tuple, Set
+
+
+@dataclass(frozen=True)
+class ParsedQuantity:
+    kind: str
+    value: Decimal | None = None
+
+    def __str__(self) -> str:
+        if self.kind == "all":
+            return "ALL"
+        if self.kind == "percent":
+            return f"{self.value}%"
+        return f"{self.value}"
 
 
 @dataclass
@@ -7,8 +21,8 @@ class PlannedAction:
     index: int
     action_type: str
     symbol: str
-    quantity: Optional[str] = None
-    percent: Optional[float] = None
+    quantity: Optional[ParsedQuantity] = None
+    percent: Optional[Decimal] = None
     using: List[str] = None
     using_classified: List[Tuple[str, str]] = None
     derived_id: str = ""
@@ -17,6 +31,54 @@ class PlannedAction:
 
 def derive_action_id(action_type: str, symbol: str) -> str:
     return f"{action_type}{symbol.upper()}"
+
+
+def parse_percent(value) -> Optional[Decimal]:
+    if value is None:
+        return None
+
+    if isinstance(value, (int, float, Decimal)):
+        return Decimal(str(value))
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.endswith("%"):
+            stripped = stripped[:-1].strip()
+        if not stripped:
+            raise ValueError("Percent cannot be empty")
+        try:
+            return Decimal(stripped)
+        except InvalidOperation as exc:
+            raise ValueError(f"Invalid percent value: {value}") from exc
+
+    raise ValueError(f"Unsupported percent value type: {type(value)}")
+
+
+def parse_quantity(value) -> Optional[ParsedQuantity]:
+    if value is None:
+        return None
+
+    if isinstance(value, (int, float, Decimal)):
+        return ParsedQuantity(kind="shares", value=Decimal(str(value)))
+
+    if isinstance(value, str):
+        stripped = value.strip().upper()
+        if stripped == "ALL":
+            return ParsedQuantity(kind="all")
+        if stripped.endswith("%"):
+            stripped = stripped[:-1].strip()
+            if not stripped:
+                raise ValueError("Quantity percent cannot be empty")
+            try:
+                return ParsedQuantity(kind="percent", value=Decimal(stripped))
+            except InvalidOperation as exc:
+                raise ValueError(f"Invalid percent quantity: {value}") from exc
+        try:
+            return ParsedQuantity(kind="shares", value=Decimal(stripped))
+        except InvalidOperation as exc:
+            raise ValueError(f"Invalid quantity value: {value}") from exc
+
+    raise ValueError(f"Unsupported quantity value type: {type(value)}")
 
 
 def plan_actions(tol_doc: dict) -> List[PlannedAction]:
@@ -51,8 +113,8 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
             index=idx,
             action_type=action_type,
             symbol=symbol,
-            quantity=body.get("quantity"),
-            percent=body.get("percent"),
+            quantity=parse_quantity(body.get("quantity")),
+            percent=parse_percent(body.get("percent")),
             using=using,
             derived_id=derived_id,
             depends_on=[]
