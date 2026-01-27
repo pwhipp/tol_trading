@@ -14,4 +14,4 @@ dependencies = [
 ]
 
 [project.scripts]
-tol = "tol.cli:main"
+tol = "tol.cli.main:main"
