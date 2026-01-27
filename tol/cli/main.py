@@ -41,7 +41,10 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["local", "portfolio", "broker"],
         help=(
             "Perform a dry run without executing orders. "
-            "If specified without a value, defaults to 'portfolio'."
+            "If specified without a value, defaults to 'portfolio'. "
+            "Levels: 'local' validates the TOL file only; 'portfolio' also "
+            "queries holdings and prices to compute quantities; 'broker' also "
+            "connects to IBKR to validate order parameters."
         ),
     )
 
