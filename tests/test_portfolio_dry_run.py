@@ -22,6 +22,10 @@ class TestPortfolioDryRun(unittest.TestCase):
         self.assertEqual(qty_shares.kind, "shares")
         self.assertEqual(qty_shares.value, Decimal("10"))
 
+        qty_float = normalize_quantity(0.5)
+        self.assertEqual(qty_float.kind, "percent")
+        self.assertEqual(qty_float.value, Decimal("0.5"))
+
     def test_sell_insufficient_holdings(self) -> None:
         tol_doc = {
             "actions": [

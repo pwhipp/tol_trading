@@ -3,10 +3,9 @@ from pathlib import Path
 
 
 def handle_run(args) -> None:
-    import yaml
-
     from tol.parser.dag import compute_execution_levels
     from tol.parser.planner import plan_actions
+    from tol.load import load_tol
 
     tol_file: Path = args.tol_file
     mode = args.mode
@@ -76,9 +75,7 @@ def handle_run(args) -> None:
     print("Derived execution plan:")
     print("-" * 20)
 
-    with tol_file.open("r", encoding="utf-8") as file_handle:
-        tol_doc = yaml.safe_load(file_handle)
-
+    tol_doc = load_tol(tol_file)
     actions = plan_actions(tol_doc)
 
     if dry_run == "portfolio":

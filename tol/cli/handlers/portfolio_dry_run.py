@@ -52,8 +52,13 @@ def normalize_quantity(quantity: object) -> Optional[QuantitySpec]:
         return None
     if isinstance(quantity, QuantitySpec):
         return quantity
-    if isinstance(quantity, (int, float, Decimal)):
+    if isinstance(quantity, int):
         return QuantitySpec(kind="shares", value=_coerce_decimal(quantity))
+    if isinstance(quantity, (float, Decimal)):
+        value = _coerce_decimal(quantity)
+        if value > 1:
+            raise ValueError("Float quantity must be <= 1.0 for percentages.")
+        return QuantitySpec(kind="percent", value=value)
     if isinstance(quantity, str):
         raw = quantity.strip().upper()
         if raw == "ALL":
