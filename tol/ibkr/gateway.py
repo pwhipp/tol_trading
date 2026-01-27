@@ -1,6 +1,6 @@
 from decimal import Decimal
 from collections import defaultdict
-from ib_insync import IB
+from ib_insync import IB, MarketOrder, Stock
 
 
 class IBKRGateway:
@@ -43,3 +43,27 @@ class IBKRGateway:
             })
 
         return results
+
+    def qualify_stock_contract(
+        self,
+        symbol: str,
+        currency: str = "USD",
+        exchange: str = "SMART",
+    ):
+        contract = Stock(symbol, exchange, currency)
+        contracts = self.ib.qualifyContracts(contract)
+        if not contracts:
+            return None
+        return contracts[0]
+
+    def validate_order(
+        self,
+        contract,
+        action_type: str,
+        quantity: Decimal,
+    ) -> dict:
+        side = "BUY" if action_type == "buy" else "SELL"
+        order = MarketOrder(side, float(quantity))
+        order_state = self.ib.whatIfOrder(contract, order)
+        status = getattr(order_state, "status", None)
+        return {"status": status}

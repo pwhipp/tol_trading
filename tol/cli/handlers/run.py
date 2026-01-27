@@ -88,6 +88,16 @@ def handle_run(args) -> None:
         for line in report_lines:
             print(line)
         print()
+    elif dry_run == "broker":
+        from tol.cli.handlers.broker_dry_run import run_broker_dry_run
+
+        print()
+        print("Broker dry run:")
+        print("-" * 20)
+        report_lines = run_broker_dry_run(actions, mode)
+        for line in report_lines:
+            print(line)
+        print()
 
     for action in actions:
         print(f"• {action.derived_id}")
