@@ -46,6 +46,9 @@ class FakeGateway:
             "is_open": symbol != "CLOSED",
         }
 
+    def get_cash_by_currency(self) -> dict[str, Decimal]:
+        return {"USD": Decimal("1000")}
+
 
 class TestBrokerDryRun(unittest.TestCase):
     def test_validate_buy_action(self) -> None:
@@ -89,6 +92,18 @@ class TestBrokerDryRun(unittest.TestCase):
 
         self.assertTrue(validation.warnings)
         self.assertFalse(validation.errors)
+
+    def test_percent_buy_resolves_quantity(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"buy": {"symbol": "AAPL", "quantity": 0.5}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        validation = validate_action_with_broker(actions[0], FakeGateway("paper"))
+
+        self.assertFalse(validation.errors)
+        self.assertEqual(len(validation.planned_trades), 1)
 
     def test_market_closed_warning(self) -> None:
         tol_doc = {

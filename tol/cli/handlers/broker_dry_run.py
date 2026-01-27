@@ -29,6 +29,8 @@ class BrokerGateway(Protocol):
 
     def get_market_snapshot(self, contract: object) -> dict: ...
 
+    def get_cash_by_currency(self) -> dict[str, Decimal]: ...
+
 
 @dataclass
 class BrokerValidation:
@@ -117,14 +119,19 @@ def validate_action_with_broker(
         return validation
 
     if action.action_type in {"buy", "sell"}:
-        quantity = _resolve_share_quantity(action.quantity, validation)
-        if quantity is None:
-            return validation
         market_snapshot = _resolve_market_snapshot(
             gateway,
             contract,
             validation,
         )
+        quantity = _resolve_share_quantity(
+            action,
+            gateway,
+            market_snapshot,
+            validation,
+        )
+        if quantity is None:
+            return validation
         _validate_order_with_gateway(
             gateway,
             contract,
@@ -183,27 +190,52 @@ def _resolve_contract(
 
 
 def _resolve_share_quantity(
-    quantity: object,
+    action: PlannedAction,
+    gateway: BrokerGateway,
+    market_snapshot: Optional[dict],
     validation: BrokerValidation,
 ) -> Optional[Decimal]:
+    quantity = action.quantity
     if quantity is None:
         validation.errors.append("Order quantity is required for broker validation.")
         return None
     if isinstance(quantity, (int, Decimal)):
         return _coerce_decimal(quantity, validation)
     if isinstance(quantity, float):
-        validation.warnings.append(
-            "Float quantity interpreted as percent; broker validation skipped."
+        if quantity > 1:
+            return _coerce_decimal(quantity, validation)
+        return _resolve_percent_quantity(
+            action,
+            gateway,
+            Decimal(str(quantity)),
+            market_snapshot,
+            validation,
         )
-        return None
     if isinstance(quantity, str):
         raw = quantity.strip().upper()
-        if raw == "ALL" or raw.endswith("%"):
-            validation.warnings.append(
-                "Percent/ALL quantities need portfolio context; "
-                "broker validation skipped."
+        if raw == "ALL":
+            return _resolve_percent_quantity(
+                action,
+                gateway,
+                Decimal("1"),
+                market_snapshot,
+                validation,
             )
-            return None
+        if raw.endswith("%"):
+            value = raw[:-1].strip()
+            if not value:
+                validation.errors.append("Percent quantity is missing a value.")
+                return None
+            percent = _coerce_decimal(value, validation)
+            if percent is None:
+                return None
+            return _resolve_percent_quantity(
+                action,
+                gateway,
+                percent / Decimal("100"),
+                market_snapshot,
+                validation,
+            )
         return _coerce_decimal(raw, validation)
     validation.errors.append("Unsupported quantity type.")
     return None
@@ -231,6 +263,54 @@ def _resolve_market_snapshot(
     currency = snapshot.get("currency") if isinstance(snapshot, dict) else None
     snapshot["currency"] = currency or "USD"
     return snapshot
+
+
+def _resolve_percent_quantity(
+    action: PlannedAction,
+    gateway: BrokerGateway,
+    percent: Decimal,
+    market_snapshot: Optional[dict],
+    validation: BrokerValidation,
+) -> Optional[Decimal]:
+    if action.action_type != "buy":
+        validation.warnings.append(
+            "Percent quantities for sells need portfolio context; "
+            "broker validation skipped."
+        )
+        return None
+    if market_snapshot is None or market_snapshot.get("price") is None:
+        validation.warnings.append(
+            "Market price unavailable; cannot resolve percent quantity."
+        )
+        return None
+    expected_currency = market_snapshot.get("currency")
+    cash_by_currency = gateway.get_cash_by_currency()
+    cash_value, warning = _resolve_cash_value(cash_by_currency, expected_currency)
+    if warning:
+        validation.warnings.append(warning)
+    if cash_value <= 0:
+        validation.errors.append("No cash available to satisfy percent quantity.")
+        return None
+    return (cash_value * percent) / market_snapshot["price"]
+
+
+def _resolve_cash_value(
+    cash_by_currency: dict[str, Decimal],
+    expected_currency: Optional[str],
+) -> tuple[Decimal, Optional[str]]:
+    total_cash = sum(cash_by_currency.values(), Decimal("0"))
+    if expected_currency is None:
+        return total_cash, (
+            "Using total cash across currencies; no conversion applied."
+        )
+    cash_value = cash_by_currency.get(expected_currency, Decimal("0"))
+    if len(cash_by_currency) > 1:
+        warning = (
+            f"Using cash in {expected_currency} only; other currencies are ignored."
+        )
+    else:
+        warning = None
+    return cash_value, warning
 
 
 def _append_planned_trade(
