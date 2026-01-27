@@ -215,10 +215,16 @@ def _evaluate_buy(
     available_value = Decimal("0")
     missing_sources: list[str] = []
     unresolved_sources: list[str] = []
+    expected_currency = _resolve_expected_currency(action, snapshot)
+    cash_warning_emitted = False
 
     for source, source_type in action.using_classified or []:
         if source_type == "cash":
-            available_value += snapshot.total_cash
+            cash_value, warning = _resolve_cash_value(snapshot, expected_currency)
+            available_value += cash_value
+            if warning and not cash_warning_emitted:
+                evaluation.warnings.append(warning)
+                cash_warning_emitted = True
         elif source_type == "holding":
             position = snapshot.positions_by_symbol.get(source)
             if position:
@@ -366,3 +372,33 @@ def _coerce_decimal(value: object) -> Decimal:
         return Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise ValueError(f"Invalid numeric value: {value}") from exc
+
+
+def _resolve_expected_currency(
+    action: PlannedAction,
+    snapshot: PortfolioSnapshot,
+) -> Optional[str]:
+    position = snapshot.positions_by_symbol.get(action.symbol)
+    if position:
+        return position.currency
+    if len(snapshot.cash_by_currency) == 1:
+        return next(iter(snapshot.cash_by_currency.keys()))
+    return None
+
+
+def _resolve_cash_value(
+    snapshot: PortfolioSnapshot,
+    expected_currency: Optional[str],
+) -> tuple[Decimal, Optional[str]]:
+    if expected_currency is None:
+        return snapshot.total_cash, (
+            "Using total cash across currencies; no conversion applied."
+        )
+    cash_value = snapshot.cash_by_currency.get(expected_currency, Decimal("0"))
+    if len(snapshot.cash_by_currency) > 1:
+        warning = (
+            f"Using cash in {expected_currency} only; other currencies are ignored."
+        )
+    else:
+        warning = None
+    return cash_value, warning
