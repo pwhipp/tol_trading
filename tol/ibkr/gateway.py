@@ -43,5 +43,3 @@ class IBKRGateway:
             })
 
         return results
-
-        return results
