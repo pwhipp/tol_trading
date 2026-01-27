@@ -81,6 +81,17 @@ def handle_run(args) -> None:
 
     actions = plan_actions(tol_doc)
 
+    if dry_run == "portfolio":
+        from tol.cli.handlers.portfolio_dry_run import run_portfolio_dry_run
+
+        print()
+        print("Portfolio dry run:")
+        print("-" * 20)
+        report_lines = run_portfolio_dry_run(actions, mode)
+        for line in report_lines:
+            print(line)
+        print()
+
     for action in actions:
         print(f"• {action.derived_id}")
         print(f"    type        : {action.action_type}")
