@@ -73,6 +73,34 @@ class TestPortfolioDryRun(unittest.TestCase):
             any("Estimated spend" in msg for msg in evaluations[0].messages)
         )
 
+    def test_buy_uses_matching_currency_cash(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"buy": {"symbol": "TSLA", "quantity": 1.0, "using": ["CASH"]}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        snapshot = build_snapshot(
+            {"USD": Decimal("100"), "AUD": Decimal("200")},
+            [
+                {
+                    "symbol": "TSLA",
+                    "quantity": Decimal("10"),
+                    "market_value": Decimal("1000"),
+                    "currency": "USD",
+                }
+            ],
+        )
+
+        evaluations = evaluate_actions(actions, snapshot)
+        self.assertTrue(
+            any(
+                "Available value from sources: 100.00." in msg
+                for msg in evaluations[0].messages
+            )
+        )
+        self.assertTrue(evaluations[0].warnings)
+
     def test_target_implied_buy(self) -> None:
         tol_doc = {
             "actions": [
