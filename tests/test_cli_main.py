@@ -1,5 +1,7 @@
 import unittest
 
+import argparse
+
 from tol.cli.main import build_parser
 
 
@@ -32,6 +34,20 @@ class TestCliMain(unittest.TestCase):
         args = parser.parse_args(["run", "example.yaml", "--mode", "paper"])
 
         self.assertEqual(args.dry_run, None)
+
+    def test_run_help_includes_dry_run_intentions(self) -> None:
+        parser = build_parser()
+        subparsers_action = next(
+            action
+            for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        run_parser = subparsers_action.choices["run"]
+        help_text = run_parser.format_help()
+
+        self.assertIn("validates the TOL file only", help_text)
+        self.assertIn("queries holdings and prices", help_text)
+        self.assertIn("connects to IBKR", help_text)
 
 
 if __name__ == "__main__":
