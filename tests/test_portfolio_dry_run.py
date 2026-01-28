@@ -72,6 +72,8 @@ class TestPortfolioDryRun(unittest.TestCase):
         self.assertTrue(
             any("Estimated spend" in msg for msg in evaluations[0].messages)
         )
+        self.assertEqual(len(evaluations[0].planned_trades), 1)
+        self.assertEqual(evaluations[0].planned_trades[0].symbol, "MSFT")
 
     def test_buy_uses_matching_currency_cash(self) -> None:
         tol_doc = {
@@ -131,6 +133,7 @@ class TestPortfolioDryRun(unittest.TestCase):
         self.assertTrue(
             any("Implied buy" in msg for msg in evaluations[0].messages)
         )
+        self.assertEqual(len(evaluations[0].planned_trades), 1)
 
 
 if __name__ == "__main__":

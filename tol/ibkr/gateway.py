@@ -1,3 +1,4 @@
+import math
 from decimal import Decimal
 from collections import defaultdict
 from ib_insync import IB, MarketOrder, Stock
@@ -67,3 +68,35 @@ class IBKRGateway:
         order_state = self.ib.whatIfOrder(contract, order)
         status = getattr(order_state, "status", None)
         return {"status": status}
+
+    def get_market_snapshot(self, contract) -> dict:
+        self.ib.reqMarketDataType(3)
+        ticker = self.ib.reqMktData(contract, "", False, False)
+        self.ib.sleep(1)
+        last = self._safe_decimal(getattr(ticker, "last", None))
+        close = self._safe_decimal(getattr(ticker, "close", None))
+        bid = self._safe_decimal(getattr(ticker, "bid", None))
+        ask = self._safe_decimal(getattr(ticker, "ask", None))
+        price = last or close
+        is_open = None
+        if bid is not None and ask is not None:
+            is_open = True
+        elif price is not None:
+            is_open = False
+        return {
+            "price": price,
+            "currency": getattr(contract, "currency", "USD"),
+            "is_open": is_open,
+        }
+
+    @staticmethod
+    def _safe_decimal(value) -> Decimal | None:
+        if value is None:
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(numeric):
+            return None
+        return Decimal(str(value))
