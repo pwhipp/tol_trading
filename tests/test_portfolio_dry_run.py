@@ -2,10 +2,12 @@ from decimal import Decimal
 import unittest
 
 from tol.cli.handlers.portfolio_dry_run import (
+    _apply_pending_trades,
     build_snapshot,
     evaluate_actions,
     normalize_quantity,
 )
+from tol.cli.handlers.pending_trades import normalize_pending_trades
 from tol.parser.planner import plan_actions
 
 
@@ -173,6 +175,40 @@ class TestPortfolioDryRun(unittest.TestCase):
         self.assertTrue(
             any("Pending trade conflict" in msg for msg in evaluations[0].warnings)
         )
+
+    def test_pending_trade_does_not_reprice_existing_holdings(self) -> None:
+        snapshot = build_snapshot(
+            {"USD": Decimal("1000")},
+            [
+                {
+                    "symbol": "AAPL",
+                    "quantity": Decimal("10"),
+                    "market_value": Decimal("1000"),
+                    "currency": "USD",
+                }
+            ],
+        )
+
+        adjusted_snapshot, _ = _apply_pending_trades(
+            snapshot,
+            normalize_pending_trades(
+                [
+                    {
+                        "symbol": "AAPL",
+                        "action_type": "buy",
+                        "quantity": Decimal("2"),
+                        "status": "Submitted",
+                        "price": Decimal("90"),
+                        "currency": "USD",
+                        "order_type": "LMT",
+                    }
+                ]
+            ),
+        )
+
+        position = adjusted_snapshot.positions_by_symbol["AAPL"]
+        self.assertEqual(position.quantity, Decimal("12"))
+        self.assertEqual(position.market_value, Decimal("1180"))
 
 
 if __name__ == "__main__":

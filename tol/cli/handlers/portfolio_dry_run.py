@@ -524,7 +524,7 @@ def _apply_pending_trades(
             if price is None:
                 market_value = position.market_value
             else:
-                market_value = price * new_qty
+                market_value = position.market_value + (price * delta_qty)
             positions_by_symbol[trade.symbol] = PortfolioPosition(
                 symbol=trade.symbol,
                 quantity=new_qty,
