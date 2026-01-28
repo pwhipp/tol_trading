@@ -114,17 +114,9 @@ def evaluate_actions(
     actions: Iterable[PlannedAction],
     snapshot: PortfolioSnapshot,
     pending_trades: Optional[Iterable[dict]] = None,
-    cash_warnings: Optional[list[str]] = None,
-    apply_pending_trades: bool = True,
 ) -> list[ActionEvaluation]:
     normalized_pending = normalize_pending_trades(pending_trades)
-    if apply_pending_trades:
-        snapshot, derived_cash_warnings = _apply_pending_trades(
-            snapshot,
-            normalized_pending,
-        )
-    else:
-        derived_cash_warnings = cash_warnings or []
+    reservations, derived_warnings = _derive_reservations(normalized_pending)
     evaluations: list[ActionEvaluation] = []
     for action in actions:
         evaluation = ActionEvaluation(
@@ -137,13 +129,31 @@ def evaluate_actions(
             normalized_pending,
         )
         if _action_uses_cash(action):
-            evaluation.warnings.extend(derived_cash_warnings)
+            evaluation.warnings.extend(derived_warnings)
         if action.action_type == "sell":
-            _evaluate_sell(action, snapshot, evaluation)
+            _evaluate_sell(
+                action,
+                snapshot,
+                evaluation,
+                reservations,
+                normalized_pending,
+            )
         elif action.action_type == "buy":
-            _evaluate_buy(action, snapshot, evaluation)
+            _evaluate_buy(
+                action,
+                snapshot,
+                evaluation,
+                reservations,
+                normalized_pending,
+            )
         elif action.action_type == "target":
-            _evaluate_target(action, snapshot, evaluation)
+            _evaluate_target(
+                action,
+                snapshot,
+                evaluation,
+                reservations,
+                normalized_pending,
+            )
         else:
             evaluation.warnings.append(
                 f"Unknown action type '{action.action_type}'."
@@ -213,25 +223,20 @@ def run_portfolio_dry_run(
         gateway.disconnect()
 
     snapshot = build_snapshot(cash_by_currency, positions)
-    normalized_pending = normalize_pending_trades(pending_trades)
-    adjusted_snapshot, cash_warnings = _apply_pending_trades(
-        snapshot,
-        normalized_pending,
-    )
     evaluations = evaluate_actions(
         actions,
-        adjusted_snapshot,
-        pending_trades=normalized_pending,
-        cash_warnings=cash_warnings,
-        apply_pending_trades=False,
+        snapshot,
+        pending_trades=pending_trades,
     )
-    return build_portfolio_report(adjusted_snapshot, evaluations)
+    return build_portfolio_report(snapshot, evaluations)
 
 
 def _evaluate_sell(
     action: PlannedAction,
     snapshot: PortfolioSnapshot,
     evaluation: ActionEvaluation,
+    reservations: "PendingTradeReservations",
+    pending_trades: list[PendingTrade],
 ) -> None:
     position = snapshot.positions_by_symbol.get(action.symbol)
     if not position:
@@ -243,15 +248,37 @@ def _evaluate_sell(
         evaluation.errors.append("Sell action missing quantity.")
         return
 
-    required_qty = _resolve_quantity(quantity_spec, position.quantity)
+    reserved_qty = reservations.shares_by_symbol.get(action.symbol, Decimal("0"))
+    available_qty = position.quantity - reserved_qty
+    if available_qty < 0:
+        available_qty = Decimal("0")
+    required_qty = _resolve_quantity(quantity_spec, available_qty)
     if required_qty is None:
         evaluation.errors.append("Unable to resolve sell quantity.")
         return
 
-    if required_qty > position.quantity:
-        evaluation.errors.append(
-            f"Requested {required_qty} shares exceeds holding of {position.quantity}."
+    if required_qty > available_qty:
+        details = _describe_pending_trades(
+            pending_trades,
+            symbol=action.symbol,
+            action_type="sell",
         )
+        if reserved_qty > 0 and details:
+            evaluation.errors.append(
+                "Requested "
+                f"{required_qty} shares exceeds available {available_qty} after "
+                f"reserving {reserved_qty} shares for pending sells: {details}."
+            )
+        elif reserved_qty > 0:
+            evaluation.errors.append(
+                "Requested "
+                f"{required_qty} shares exceeds available {available_qty} after "
+                f"reserving {reserved_qty} shares for pending sells."
+            )
+        else:
+            evaluation.errors.append(
+                f"Requested {required_qty} shares exceeds holding of {position.quantity}."
+            )
     else:
         evaluation.messages.append(
             f"Sell {required_qty} shares from {position.quantity} held."
@@ -280,6 +307,8 @@ def _evaluate_buy(
     action: PlannedAction,
     snapshot: PortfolioSnapshot,
     evaluation: ActionEvaluation,
+    reservations: "PendingTradeReservations",
+    pending_trades: list[PendingTrade],
 ) -> None:
     quantity_spec = normalize_quantity(action.quantity)
     if quantity_spec is None:
@@ -294,7 +323,11 @@ def _evaluate_buy(
 
     for source, source_type in action.using_classified or []:
         if source_type == "cash":
-            cash_value, warning = _resolve_cash_value(snapshot, expected_currency)
+            cash_value, warning = _resolve_cash_value(
+                snapshot,
+                expected_currency,
+                reservations.cash_by_currency,
+            )
             available_value += cash_value
             if warning and not cash_warning_emitted:
                 evaluation.warnings.append(warning)
@@ -302,7 +335,10 @@ def _evaluate_buy(
         elif source_type == "holding":
             position = snapshot.positions_by_symbol.get(source)
             if position:
-                available_value += position.market_value
+                available_value += _resolve_available_value(
+                    position,
+                    reservations.shares_by_symbol.get(source, Decimal("0")),
+                )
             else:
                 missing_sources.append(source)
         elif source_type == "action":
@@ -336,9 +372,20 @@ def _evaluate_buy(
             f"Estimated spend: {required_value:,.2f}."
         )
         if required_value > available_value:
-            evaluation.errors.append(
-                "Insufficient value to satisfy buy quantity."
+            reserved_details = _describe_pending_trades(
+                pending_trades,
+                action_type="buy",
+                currency=expected_currency,
             )
+            if reserved_details:
+                evaluation.errors.append(
+                    "Insufficient value to satisfy buy quantity. "
+                    f"Reserved by pending buys: {reserved_details}."
+                )
+            else:
+                evaluation.errors.append(
+                    "Insufficient value to satisfy buy quantity."
+                )
 
     if required_shares is not None:
         evaluation.messages.append(
@@ -368,6 +415,8 @@ def _evaluate_target(
     action: PlannedAction,
     snapshot: PortfolioSnapshot,
     evaluation: ActionEvaluation,
+    reservations: "PendingTradeReservations",
+    pending_trades: list[PendingTrade],
 ) -> None:
     if action.percent is None:
         evaluation.errors.append("Target action missing percent.")
@@ -380,11 +429,14 @@ def _evaluate_target(
 
     for source, source_type in action.using_classified or []:
         if source_type == "cash":
-            total_value += snapshot.total_cash
+            total_value += _resolve_available_cash(snapshot, reservations.cash_by_currency)
         elif source_type == "holding":
             position = snapshot.positions_by_symbol.get(source)
             if position:
-                total_value += position.market_value
+                total_value += _resolve_available_value(
+                    position,
+                    reservations.shares_by_symbol.get(source, Decimal("0")),
+                )
             else:
                 missing_sources.append(source)
         else:
@@ -407,6 +459,27 @@ def _evaluate_target(
     evaluation.messages.append(
         f"Target value: {desired_value:,.2f}; current value: {current_value:,.2f}."
     )
+    if reservations.cash_by_currency:
+        cash_details = _describe_pending_trades(
+            pending_trades,
+            action_type="buy",
+            currency=_resolve_expected_currency(action, snapshot),
+        )
+        if cash_details:
+            evaluation.warnings.append(
+                f"Pending buys reserve cash used for targets: {cash_details}."
+            )
+    if reservations.shares_by_symbol.get(action.symbol, Decimal("0")) > 0:
+        details = _describe_pending_trades(
+            pending_trades,
+            symbol=action.symbol,
+            action_type="sell",
+        )
+        if details:
+            evaluation.warnings.append(
+                "Pending sells reserve shares for target symbol: "
+                f"{details}."
+            )
 
     price = current_position.price if current_position else None
     if price:
@@ -488,81 +561,123 @@ def _resolve_expected_currency(
 def _resolve_cash_value(
     snapshot: PortfolioSnapshot,
     expected_currency: Optional[str],
+    reserved_cash_by_currency: dict[str, Decimal],
 ) -> tuple[Decimal, Optional[str]]:
     if expected_currency is None:
-        return snapshot.total_cash, (
-            "Using total cash across currencies; no conversion applied."
-        )
+        total_cash = _resolve_available_cash(snapshot, reserved_cash_by_currency)
+        warning = "Using total cash across currencies; no conversion applied."
+        if reserved_cash_by_currency:
+            total_reserved = sum(reserved_cash_by_currency.values(), Decimal("0"))
+            warning = _append_warning(
+                warning,
+                f"{total_reserved:,.2f} reserved for pending buys.",
+            )
+        return total_cash, warning
     cash_value = snapshot.cash_by_currency.get(expected_currency, Decimal("0"))
+    reserved_cash = reserved_cash_by_currency.get(expected_currency, Decimal("0"))
+    available_cash = cash_value - reserved_cash
+    if available_cash < 0:
+        available_cash = Decimal("0")
     if len(snapshot.cash_by_currency) > 1:
         warning = (
             f"Using cash in {expected_currency} only; other currencies are ignored."
         )
     else:
         warning = None
-    return cash_value, warning
+    if reserved_cash:
+        warning = _append_warning(
+            warning,
+            f"{reserved_cash:,.2f} {expected_currency} reserved for pending buys.",
+        )
+    return available_cash, warning
 
 
-def _apply_pending_trades(
-    snapshot: PortfolioSnapshot,
+@dataclass(frozen=True)
+class PendingTradeReservations:
+    cash_by_currency: dict[str, Decimal]
+    shares_by_symbol: dict[str, Decimal]
+
+
+def _derive_reservations(
     pending_trades: list[PendingTrade],
-) -> tuple[PortfolioSnapshot, list[str]]:
-    if not pending_trades:
-        return snapshot, []
-    cash_by_currency = dict(snapshot.cash_by_currency)
-    positions_by_symbol = dict(snapshot.positions_by_symbol)
-    cash_warnings: list[str] = []
+) -> tuple["PendingTradeReservations", list[str]]:
+    cash_by_currency: dict[str, Decimal] = {}
+    shares_by_symbol: dict[str, Decimal] = {}
+    warnings: list[str] = []
 
     for trade in pending_trades:
-        position = positions_by_symbol.get(trade.symbol)
-        delta_qty = trade.quantity if trade.action_type == "buy" else -trade.quantity
-        price = trade.price or (position.price if position else None)
-        currency = trade.currency or (position.currency if position else "USD")
-
-        if position:
-            new_qty = position.quantity + delta_qty
-            position_price = position.price
-            if position_price is None:
-                market_value = position.market_value
-            else:
-                market_value = position_price * new_qty
-            positions_by_symbol[trade.symbol] = PortfolioPosition(
-                symbol=trade.symbol,
-                quantity=new_qty,
-                market_value=market_value,
-                currency=position.currency,
-            )
-        else:
-            market_value = price * delta_qty if price is not None else Decimal("0")
-            positions_by_symbol[trade.symbol] = PortfolioPosition(
-                symbol=trade.symbol,
-                quantity=delta_qty,
-                market_value=market_value,
-                currency=currency,
-            )
-
-        if price is None:
-            cash_warnings.append(
-                f"Pending {trade.action_type} {trade.symbol} lacks pricing; "
-                "cash impact not applied."
-            )
-            continue
-
-        cash_delta = price * trade.quantity
         if trade.action_type == "buy":
+            if trade.price is None:
+                warnings.append(
+                    f"Pending buy {trade.symbol} lacks pricing; "
+                    "cash reservation not applied."
+                )
+                continue
+            currency = trade.currency or "USD"
             cash_by_currency[currency] = (
-                cash_by_currency.get(currency, Decimal("0")) - cash_delta
+                cash_by_currency.get(currency, Decimal("0"))
+                + (trade.price * trade.quantity)
             )
-        else:
-            cash_by_currency[currency] = (
-                cash_by_currency.get(currency, Decimal("0")) + cash_delta
+        elif trade.action_type == "sell":
+            shares_by_symbol[trade.symbol] = (
+                shares_by_symbol.get(trade.symbol, Decimal("0")) + trade.quantity
             )
 
-    adjusted_snapshot = PortfolioSnapshot(
+    return PendingTradeReservations(
         cash_by_currency=cash_by_currency,
-        positions_by_symbol=positions_by_symbol,
-    )
-    return adjusted_snapshot, cash_warnings
+        shares_by_symbol=shares_by_symbol,
+    ), warnings
+
+
+def _resolve_available_cash(
+    snapshot: PortfolioSnapshot,
+    reserved_cash_by_currency: dict[str, Decimal],
+) -> Decimal:
+    total_reserved = sum(reserved_cash_by_currency.values(), Decimal("0"))
+    available = snapshot.total_cash - total_reserved
+    if available < 0:
+        return Decimal("0")
+    return available
+
+
+def _resolve_available_value(
+    position: PortfolioPosition,
+    reserved_shares: Decimal,
+) -> Decimal:
+    available_qty = position.quantity - reserved_shares
+    if available_qty < 0:
+        available_qty = Decimal("0")
+    price = position.price
+    if price is None:
+        return Decimal("0")
+    return price * available_qty
+
+
+def _append_warning(
+    warning: Optional[str],
+    extra: str,
+) -> str:
+    if warning:
+        return f"{warning} {extra}"
+    return extra
+
+
+def _describe_pending_trades(
+    pending_trades: list[PendingTrade],
+    symbol: Optional[str] = None,
+    action_type: Optional[str] = None,
+    currency: Optional[str] = None,
+) -> str:
+    matches = []
+    for trade in pending_trades:
+        if symbol and trade.symbol != symbol:
+            continue
+        if action_type and trade.action_type != action_type:
+            continue
+        if currency and (trade.currency or "USD") != currency:
+            continue
+        matches.append(format_pending_trade(trade))
+    return "; ".join(matches)
 
 
 def _action_uses_cash(action: PlannedAction) -> bool:
@@ -583,19 +698,15 @@ def _append_pending_trade_warnings(
     conflicts = [
         trade
         for trade in pending_trades
-        if trade.symbol == action_symbol and _is_conflicting_trade(action, trade)
+        if trade.symbol == action_symbol and _is_overlapping_trade(action, trade)
     ]
     for trade in conflicts:
         evaluation.warnings.append(
-            "Pending trade conflict: " + format_pending_trade(trade) + "."
+            "Pending trade overlap: " + format_pending_trade(trade) + "."
         )
 
 
-def _is_conflicting_trade(action: PlannedAction, trade: PendingTrade) -> bool:
+def _is_overlapping_trade(action: PlannedAction, trade: PendingTrade) -> bool:
     if action.action_type == "target":
         return True
-    if action.action_type == "buy" and trade.action_type == "sell":
-        return True
-    if action.action_type == "sell" and trade.action_type == "buy":
-        return True
-    return False
+    return action.action_type in {"buy", "sell"}

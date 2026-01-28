@@ -80,6 +80,7 @@ class IBKRGateway:
                     "price": limit_price,
                     "currency": getattr(contract, "currency", "USD"),
                     "order_type": getattr(order, "orderType", None),
+                    "order_id": getattr(order, "orderId", None),
                 }
             )
         return trades

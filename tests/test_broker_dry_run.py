@@ -163,7 +163,7 @@ class TestBrokerDryRun(unittest.TestCase):
         )
 
         self.assertTrue(
-            any("Pending trade conflict" in msg for msg in validation.warnings)
+            any("Pending trade overlap" in msg for msg in validation.warnings)
         )
 
 

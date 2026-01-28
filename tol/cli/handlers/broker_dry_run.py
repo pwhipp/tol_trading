@@ -338,15 +338,11 @@ def _apply_pending_trades_to_cash(
                 "cash impact not applied."
             )
             continue
-        currency = trade.currency or "USD"
-        cash_delta = trade.price * trade.quantity
         if trade.action_type == "buy":
+            currency = trade.currency or "USD"
+            cash_delta = trade.price * trade.quantity
             adjusted_cash[currency] = (
                 adjusted_cash.get(currency, Decimal("0")) - cash_delta
-            )
-        else:
-            adjusted_cash[currency] = (
-                adjusted_cash.get(currency, Decimal("0")) + cash_delta
             )
     return adjusted_cash
 
@@ -360,22 +356,18 @@ def _append_pending_trade_warnings(
     conflicts = [
         trade
         for trade in pending_trades
-        if trade.symbol == action_symbol and _is_conflicting_trade(action, trade)
+        if trade.symbol == action_symbol and _is_overlapping_trade(action, trade)
     ]
     for trade in conflicts:
         validation.warnings.append(
-            "Pending trade conflict: " + format_pending_trade(trade) + "."
+            "Pending trade overlap: " + format_pending_trade(trade) + "."
         )
 
 
-def _is_conflicting_trade(action: PlannedAction, trade: PendingTrade) -> bool:
+def _is_overlapping_trade(action: PlannedAction, trade: PendingTrade) -> bool:
     if action.action_type == "target":
         return True
-    if action.action_type == "buy" and trade.action_type == "sell":
-        return True
-    if action.action_type == "sell" and trade.action_type == "buy":
-        return True
-    return False
+    return action.action_type in {"buy", "sell"}
 
 
 def _resolve_cash_value(
