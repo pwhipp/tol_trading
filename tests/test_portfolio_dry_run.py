@@ -208,7 +208,41 @@ class TestPortfolioDryRun(unittest.TestCase):
 
         position = adjusted_snapshot.positions_by_symbol["AAPL"]
         self.assertEqual(position.quantity, Decimal("12"))
-        self.assertEqual(position.market_value, Decimal("1180"))
+        self.assertEqual(position.market_value, Decimal("1200"))
+
+    def test_pending_sell_uses_position_price_for_value(self) -> None:
+        snapshot = build_snapshot(
+            {"USD": Decimal("1000")},
+            [
+                {
+                    "symbol": "TSLA",
+                    "quantity": Decimal("10"),
+                    "market_value": Decimal("1000"),
+                    "currency": "USD",
+                }
+            ],
+        )
+
+        adjusted_snapshot, _ = _apply_pending_trades(
+            snapshot,
+            normalize_pending_trades(
+                [
+                    {
+                        "symbol": "TSLA",
+                        "action_type": "sell",
+                        "quantity": Decimal("10"),
+                        "status": "Submitted",
+                        "price": Decimal("90"),
+                        "currency": "USD",
+                        "order_type": "LMT",
+                    }
+                ]
+            ),
+        )
+
+        position = adjusted_snapshot.positions_by_symbol["TSLA"]
+        self.assertEqual(position.quantity, Decimal("0"))
+        self.assertEqual(position.market_value, Decimal("0"))
 
 
 if __name__ == "__main__":
