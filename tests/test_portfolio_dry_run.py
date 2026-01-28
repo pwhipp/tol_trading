@@ -250,6 +250,58 @@ class TestPortfolioDryRun(unittest.TestCase):
             any("Reserved by pending buys" in msg for msg in evaluations[0].errors)
         )
 
+    def test_target_warns_on_pending_sell(self) -> None:
+        tol_doc = {
+            "actions": [
+                {
+                    "target": {
+                        "symbol": "TSLA",
+                        "percent": 10,
+                        "using": ["CASH", "NVDA"],
+                    }
+                }
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        snapshot = build_snapshot(
+            {"USD": Decimal("1000")},
+            [
+                {
+                    "symbol": "TSLA",
+                    "quantity": Decimal("10"),
+                    "market_value": Decimal("1000"),
+                    "currency": "USD",
+                },
+                {
+                    "symbol": "NVDA",
+                    "quantity": Decimal("5"),
+                    "market_value": Decimal("500"),
+                    "currency": "USD",
+                },
+            ],
+        )
+
+        evaluations = evaluate_actions(
+            actions,
+            snapshot,
+            pending_trades=[
+                {
+                    "symbol": "TSLA",
+                    "action_type": "sell",
+                    "quantity": Decimal("10"),
+                    "status": "Submitted",
+                    "order_type": "LMT",
+                    "order_id": 321,
+                }
+            ],
+        )
+        self.assertTrue(
+            any(
+                "Pending sells reserve shares for target symbol" in msg
+                for msg in evaluations[0].warnings
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

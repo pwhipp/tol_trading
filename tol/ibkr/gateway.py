@@ -47,6 +47,8 @@ class IBKRGateway:
 
     def get_pending_trades(self):
         trades = []
+        self.ib.reqAllOpenOrders()
+        self.ib.sleep(1)
         for trade in self.ib.openTrades():
             contract = getattr(trade, "contract", None)
             order = getattr(trade, "order", None)
