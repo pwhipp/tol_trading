@@ -49,6 +49,9 @@ class FakeGateway:
     def get_cash_by_currency(self) -> dict[str, Decimal]:
         return {"USD": Decimal("1000")}
 
+    def get_pending_trades(self) -> list[dict]:
+        return []
+
 
 class TestBrokerDryRun(unittest.TestCase):
     def test_validate_buy_action(self) -> None:
@@ -135,6 +138,33 @@ class TestBrokerDryRun(unittest.TestCase):
 
         self.assertTrue(gateway.connected)
         self.assertTrue(gateway.disconnected)
+
+    def test_pending_trade_conflict_warns(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"buy": {"symbol": "AAPL", "quantity": 1}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        validation = validate_action_with_broker(
+            actions[0],
+            FakeGateway("paper"),
+            pending_trades=[
+                {
+                    "symbol": "AAPL",
+                    "action_type": "sell",
+                    "quantity": Decimal("2"),
+                    "status": "Submitted",
+                    "price": Decimal("190"),
+                    "currency": "USD",
+                    "order_type": "LMT",
+                }
+            ],
+        )
+
+        self.assertTrue(
+            any("Pending trade overlap" in msg for msg in validation.warnings)
+        )
 
 
 if __name__ == "__main__":
