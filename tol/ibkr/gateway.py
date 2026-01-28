@@ -45,6 +45,45 @@ class IBKRGateway:
 
         return results
 
+    def get_pending_trades(self):
+        trades = []
+        for trade in self.ib.openTrades():
+            contract = getattr(trade, "contract", None)
+            order = getattr(trade, "order", None)
+            status = getattr(getattr(trade, "orderStatus", None), "status", None)
+            if contract is None or order is None:
+                continue
+            action = getattr(order, "action", None)
+            if not action:
+                continue
+            action_type = action.lower()
+            if action_type not in {"buy", "sell"}:
+                continue
+            remaining = getattr(
+                getattr(trade, "orderStatus", None),
+                "remaining",
+                None,
+            )
+            total_quantity = getattr(order, "totalQuantity", None)
+            quantity = self._safe_decimal(remaining or total_quantity)
+            if quantity is None or quantity <= 0:
+                continue
+            limit_price = self._safe_decimal(getattr(order, "lmtPrice", None))
+            if limit_price is not None and limit_price <= 0:
+                limit_price = None
+            trades.append(
+                {
+                    "symbol": getattr(contract, "symbol", ""),
+                    "action_type": action_type,
+                    "quantity": quantity,
+                    "status": status or "Unknown",
+                    "price": limit_price,
+                    "currency": getattr(contract, "currency", "USD"),
+                    "order_type": getattr(order, "orderType", None),
+                }
+            )
+        return trades
+
     def qualify_stock_contract(
         self,
         symbol: str,

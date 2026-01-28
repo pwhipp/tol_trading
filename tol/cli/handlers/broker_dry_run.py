@@ -5,6 +5,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Callable, Iterable, Optional, Protocol
 
 from tol.ibkr.gateway import IBKRGateway
+from tol.cli.handlers.pending_trades import (
+    PendingTrade,
+    format_pending_trade,
+    normalize_pending_trades,
+)
 from tol.parser.planner import PlannedAction
 
 
@@ -30,6 +35,8 @@ class BrokerGateway(Protocol):
     def get_market_snapshot(self, contract: object) -> dict: ...
 
     def get_cash_by_currency(self) -> dict[str, Decimal]: ...
+
+    def get_pending_trades(self) -> list[dict]: ...
 
 
 @dataclass
@@ -61,7 +68,15 @@ def run_broker_dry_run(
     gateway = gateway_factory(mode)
     gateway.connect()
     try:
-        results = [validate_action_with_broker(action, gateway) for action in actions]
+        pending_trades = normalize_pending_trades(gateway.get_pending_trades())
+        results = [
+            validate_action_with_broker(
+                action,
+                gateway,
+                pending_trades=pending_trades,
+            )
+            for action in actions
+        ]
     finally:
         gateway.disconnect()
     return build_broker_report(results)
@@ -103,12 +118,14 @@ def build_broker_report(
 def validate_action_with_broker(
     action: PlannedAction,
     gateway: BrokerGateway,
+    pending_trades: Optional[list[PendingTrade]] = None,
 ) -> BrokerValidation:
     validation = BrokerValidation(
         action_id=action.derived_id,
         action_type=action.action_type,
         symbol=action.symbol,
     )
+    normalized_pending = normalize_pending_trades(pending_trades)
 
     sanitized_symbol = _sanitize_symbol(action.symbol, validation)
     if sanitized_symbol is None:
@@ -117,6 +134,8 @@ def validate_action_with_broker(
     contract = _resolve_contract(gateway, sanitized_symbol, validation)
     if contract is None:
         return validation
+
+    _append_pending_trade_warnings(action, validation, normalized_pending)
 
     if action.action_type in {"buy", "sell"}:
         market_snapshot = _resolve_market_snapshot(
@@ -129,6 +148,7 @@ def validate_action_with_broker(
             gateway,
             market_snapshot,
             validation,
+            pending_trades=normalized_pending,
         )
         if quantity is None:
             return validation
@@ -194,6 +214,7 @@ def _resolve_share_quantity(
     gateway: BrokerGateway,
     market_snapshot: Optional[dict],
     validation: BrokerValidation,
+    pending_trades: Optional[list[PendingTrade]] = None,
 ) -> Optional[Decimal]:
     quantity = action.quantity
     if quantity is None:
@@ -210,6 +231,7 @@ def _resolve_share_quantity(
             Decimal(str(quantity)),
             market_snapshot,
             validation,
+            pending_trades=pending_trades,
         )
     if isinstance(quantity, str):
         raw = quantity.strip().upper()
@@ -220,6 +242,7 @@ def _resolve_share_quantity(
                 Decimal("1"),
                 market_snapshot,
                 validation,
+                pending_trades=pending_trades,
             )
         if raw.endswith("%"):
             value = raw[:-1].strip()
@@ -235,6 +258,7 @@ def _resolve_share_quantity(
                 percent / Decimal("100"),
                 market_snapshot,
                 validation,
+                pending_trades=pending_trades,
             )
         return _coerce_decimal(raw, validation)
     validation.errors.append("Unsupported quantity type.")
@@ -271,6 +295,7 @@ def _resolve_percent_quantity(
     percent: Decimal,
     market_snapshot: Optional[dict],
     validation: BrokerValidation,
+    pending_trades: Optional[list[PendingTrade]] = None,
 ) -> Optional[Decimal]:
     if action.action_type != "buy":
         validation.warnings.append(
@@ -284,7 +309,11 @@ def _resolve_percent_quantity(
         )
         return None
     expected_currency = market_snapshot.get("currency")
-    cash_by_currency = gateway.get_cash_by_currency()
+    cash_by_currency = _apply_pending_trades_to_cash(
+        gateway.get_cash_by_currency(),
+        pending_trades or [],
+        validation,
+    )
     cash_value, warning = _resolve_cash_value(cash_by_currency, expected_currency)
     if warning:
         validation.warnings.append(warning)
@@ -292,6 +321,61 @@ def _resolve_percent_quantity(
         validation.errors.append("No cash available to satisfy percent quantity.")
         return None
     return (cash_value * percent) / market_snapshot["price"]
+
+
+def _apply_pending_trades_to_cash(
+    cash_by_currency: dict[str, Decimal],
+    pending_trades: list[PendingTrade],
+    validation: BrokerValidation,
+) -> dict[str, Decimal]:
+    if not pending_trades:
+        return cash_by_currency
+    adjusted_cash = dict(cash_by_currency)
+    for trade in pending_trades:
+        if trade.price is None:
+            validation.warnings.append(
+                f"Pending {trade.action_type} {trade.symbol} lacks pricing; "
+                "cash impact not applied."
+            )
+            continue
+        currency = trade.currency or "USD"
+        cash_delta = trade.price * trade.quantity
+        if trade.action_type == "buy":
+            adjusted_cash[currency] = (
+                adjusted_cash.get(currency, Decimal("0")) - cash_delta
+            )
+        else:
+            adjusted_cash[currency] = (
+                adjusted_cash.get(currency, Decimal("0")) + cash_delta
+            )
+    return adjusted_cash
+
+
+def _append_pending_trade_warnings(
+    action: PlannedAction,
+    validation: BrokerValidation,
+    pending_trades: list[PendingTrade],
+) -> None:
+    action_symbol = str(action.symbol).strip().upper()
+    conflicts = [
+        trade
+        for trade in pending_trades
+        if trade.symbol == action_symbol and _is_conflicting_trade(action, trade)
+    ]
+    for trade in conflicts:
+        validation.warnings.append(
+            "Pending trade conflict: " + format_pending_trade(trade) + "."
+        )
+
+
+def _is_conflicting_trade(action: PlannedAction, trade: PendingTrade) -> bool:
+    if action.action_type == "target":
+        return True
+    if action.action_type == "buy" and trade.action_type == "sell":
+        return True
+    if action.action_type == "sell" and trade.action_type == "buy":
+        return True
+    return False
 
 
 def _resolve_cash_value(

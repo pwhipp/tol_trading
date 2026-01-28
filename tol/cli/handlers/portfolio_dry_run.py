@@ -5,6 +5,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Iterable, Optional
 
 from tol.ibkr.gateway import IBKRGateway
+from tol.cli.handlers.pending_trades import (
+    PendingTrade,
+    format_pending_trade,
+    normalize_pending_trades,
+)
 from tol.parser.planner import PlannedAction
 
 
@@ -108,13 +113,31 @@ def build_snapshot(
 def evaluate_actions(
     actions: Iterable[PlannedAction],
     snapshot: PortfolioSnapshot,
+    pending_trades: Optional[Iterable[dict]] = None,
+    cash_warnings: Optional[list[str]] = None,
+    apply_pending_trades: bool = True,
 ) -> list[ActionEvaluation]:
+    normalized_pending = normalize_pending_trades(pending_trades)
+    if apply_pending_trades:
+        snapshot, derived_cash_warnings = _apply_pending_trades(
+            snapshot,
+            normalized_pending,
+        )
+    else:
+        derived_cash_warnings = cash_warnings or []
     evaluations: list[ActionEvaluation] = []
     for action in actions:
         evaluation = ActionEvaluation(
             action_id=action.derived_id,
             action_type=action.action_type,
         )
+        _append_pending_trade_warnings(
+            action,
+            evaluation,
+            normalized_pending,
+        )
+        if _action_uses_cash(action):
+            evaluation.warnings.extend(derived_cash_warnings)
         if action.action_type == "sell":
             _evaluate_sell(action, snapshot, evaluation)
         elif action.action_type == "buy":
@@ -185,12 +208,24 @@ def run_portfolio_dry_run(
     try:
         cash_by_currency = gateway.get_cash_by_currency()
         positions = gateway.get_positions()
+        pending_trades = gateway.get_pending_trades()
     finally:
         gateway.disconnect()
 
     snapshot = build_snapshot(cash_by_currency, positions)
-    evaluations = evaluate_actions(actions, snapshot)
-    return build_portfolio_report(snapshot, evaluations)
+    normalized_pending = normalize_pending_trades(pending_trades)
+    adjusted_snapshot, cash_warnings = _apply_pending_trades(
+        snapshot,
+        normalized_pending,
+    )
+    evaluations = evaluate_actions(
+        actions,
+        adjusted_snapshot,
+        pending_trades=normalized_pending,
+        cash_warnings=cash_warnings,
+        apply_pending_trades=False,
+    )
+    return build_portfolio_report(adjusted_snapshot, evaluations)
 
 
 def _evaluate_sell(
@@ -466,3 +501,100 @@ def _resolve_cash_value(
     else:
         warning = None
     return cash_value, warning
+
+
+def _apply_pending_trades(
+    snapshot: PortfolioSnapshot,
+    pending_trades: list[PendingTrade],
+) -> tuple[PortfolioSnapshot, list[str]]:
+    if not pending_trades:
+        return snapshot, []
+    cash_by_currency = dict(snapshot.cash_by_currency)
+    positions_by_symbol = dict(snapshot.positions_by_symbol)
+    cash_warnings: list[str] = []
+
+    for trade in pending_trades:
+        position = positions_by_symbol.get(trade.symbol)
+        delta_qty = trade.quantity if trade.action_type == "buy" else -trade.quantity
+        price = trade.price or (position.price if position else None)
+        currency = trade.currency or (position.currency if position else "USD")
+
+        if position:
+            new_qty = position.quantity + delta_qty
+            if price is None:
+                market_value = position.market_value
+            else:
+                market_value = price * new_qty
+            positions_by_symbol[trade.symbol] = PortfolioPosition(
+                symbol=trade.symbol,
+                quantity=new_qty,
+                market_value=market_value,
+                currency=position.currency,
+            )
+        else:
+            market_value = price * delta_qty if price is not None else Decimal("0")
+            positions_by_symbol[trade.symbol] = PortfolioPosition(
+                symbol=trade.symbol,
+                quantity=delta_qty,
+                market_value=market_value,
+                currency=currency,
+            )
+
+        if price is None:
+            cash_warnings.append(
+                f"Pending {trade.action_type} {trade.symbol} lacks pricing; "
+                "cash impact not applied."
+            )
+            continue
+
+        cash_delta = price * trade.quantity
+        if trade.action_type == "buy":
+            cash_by_currency[currency] = (
+                cash_by_currency.get(currency, Decimal("0")) - cash_delta
+            )
+        else:
+            cash_by_currency[currency] = (
+                cash_by_currency.get(currency, Decimal("0")) + cash_delta
+            )
+
+    adjusted_snapshot = PortfolioSnapshot(
+        cash_by_currency=cash_by_currency,
+        positions_by_symbol=positions_by_symbol,
+    )
+    return adjusted_snapshot, cash_warnings
+
+
+def _action_uses_cash(action: PlannedAction) -> bool:
+    for _, source_type in action.using_classified or []:
+        if source_type == "cash":
+            return True
+    return False
+
+
+def _append_pending_trade_warnings(
+    action: PlannedAction,
+    evaluation: ActionEvaluation,
+    pending_trades: list[PendingTrade],
+) -> None:
+    if not pending_trades:
+        return
+    action_symbol = str(action.symbol).strip().upper()
+    conflicts = [
+        trade
+        for trade in pending_trades
+        if trade.symbol == action_symbol and _is_conflicting_trade(action, trade)
+    ]
+    for trade in conflicts:
+        evaluation.warnings.append(
+            "Pending trade conflict: " + format_pending_trade(trade) + "."
+        )
+
+
+def _is_conflicting_trade(action: PlannedAction, trade: PendingTrade) -> bool:
+    if action.action_type == "target":
+        return True
+    if action.action_type == "buy" and trade.action_type == "sell":
+        return True
+    if action.action_type == "sell" and trade.action_type == "buy":
+        return True
+    return False

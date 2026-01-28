@@ -135,6 +135,45 @@ class TestPortfolioDryRun(unittest.TestCase):
         )
         self.assertEqual(len(evaluations[0].planned_trades), 1)
 
+    def test_pending_trade_conflict_adjusts_holdings(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"sell": {"symbol": "AAPL", "quantity": 5}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        snapshot = build_snapshot(
+            {"USD": Decimal("1000")},
+            [
+                {
+                    "symbol": "AAPL",
+                    "quantity": Decimal("5"),
+                    "market_value": Decimal("500"),
+                    "currency": "USD",
+                }
+            ],
+        )
+
+        evaluations = evaluate_actions(
+            actions,
+            snapshot,
+            pending_trades=[
+                {
+                    "symbol": "AAPL",
+                    "action_type": "buy",
+                    "quantity": Decimal("2"),
+                    "status": "Submitted",
+                    "price": Decimal("100"),
+                    "currency": "USD",
+                    "order_type": "LMT",
+                }
+            ],
+        )
+        self.assertFalse(evaluations[0].errors)
+        self.assertTrue(
+            any("Pending trade conflict" in msg for msg in evaluations[0].warnings)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
