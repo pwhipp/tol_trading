@@ -2,7 +2,7 @@
 
 This document defines the **formal semantics** of the Trading Orchestration Language (TOL).
 
-TOL is a **declarative orchestration language** for executing multi-step trades safely and deterministically.
+TOL is a **declarative orchestration language** for executing multistep trades safely and deterministically.
 It specifies *what* trades should occur and *how they relate*, not *why* they were chosen.
 
 This specification is **normative**.
@@ -36,7 +36,7 @@ actions:
       ...
 ```
 
-- `settings.mode` **must** be specified and explicitly selects `paper` or `live` trading.
+- `settings.mode` must be specified and explicitly selects `paper` or `live` trading.
 - `actions` is an ordered list; declaration order is significant for resolution.
 
 ---
@@ -80,7 +80,7 @@ If multiple actions of the same type and ticker appear, the interpreter must dis
 
 ---
 
-## 4. Supported action types (MVP)
+## 4. Supported action types
 
 - `sell`
 - `buy`
@@ -94,12 +94,12 @@ All BUY and SELL actions use a single quantity model.
 
 A quantity may be expressed as:
 
-| Form | Meaning |
-|----|--------|
-| Integer | Number of shares |
-| Percentage | Percentage of available amount |
-| Currency | Monetary value |
-| `ALL` | Entire available amount (equivalent to 100%) |
+| Form       | Meaning                                      |
+|------------|----------------------------------------------|
+| Integer    | Number of shares                             |
+| Percentage | Percentage of available amount               |
+| Currency   | Monetary value                               |
+| `ALL`      | Entire available amount (equivalent to 100%) |
 
 **A quantity is always interpreted relative to the action type and its context.**
 
@@ -141,9 +141,7 @@ buy:
     - <TICKER>
 ```
 
-The `using` property is **optional**.
-
-If omitted, the BUY action is funded **entirely from available CASH**.
+The `using` property defaults to [CASH].
 
 ### Semantics
 - BUY actions depend on all referenced sources in `using`
@@ -169,9 +167,7 @@ target:
     - <TICKER>
 ```
 
-The `using` property is **optional**.
-
-If omitted, only CASH may be used to satisfy the target.
+The `using` property defaults to [CASH].
 
 ### Semantics
 The interpreter must:
@@ -184,7 +180,7 @@ The interpreter must:
 
 TARGET actions:
 - Must not depend on other TARGET actions
-- Are resolved **in declaration order**
+- Are resolved in declaration order
 - Fail if the target cannot be satisfied using the specified sources
 
 ---
@@ -230,8 +226,4 @@ These belong outside TOL.
 
 ## 12. Status
 
-This specification defines the **MVP semantics** of TOL.
-
-Implicit camelCase action identifiers, the unified quantity model,
-declaration-order resolution, and deterministic execution
-are **foundational and non-negotiable**.
+This specification defines the MVP semantics of TOL.
