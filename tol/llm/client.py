@@ -95,9 +95,9 @@ class ChatGptClient:
         self._enforce_spend_limit()
         payload = {
             "model": self._settings.model,
-            "messages": messages,
+            "input": messages,
             "temperature": self._settings.temperature,
-            "max_tokens": self._settings.max_tokens,
+            "max_output_tokens": self._settings.max_tokens,
         }
         data = json.dumps(payload).encode("utf-8")
         request_obj = request.Request(
@@ -124,12 +124,7 @@ class ChatGptClient:
             raise RuntimeError(f"ChatGPT API connection error: {exc}") from exc
 
         data = json.loads(body)
-        content = (
-            data.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-            .strip()
-        )
+        content = _extract_response_text(data)
         usage = self._parse_usage(data)
         warnings: list[str] = []
 
@@ -158,8 +153,8 @@ class ChatGptClient:
         usage_data = data.get("usage")
         if not usage_data:
             return None
-        prompt_tokens = int(usage_data.get("prompt_tokens", 0))
-        completion_tokens = int(usage_data.get("completion_tokens", 0))
+        prompt_tokens = int(usage_data.get("input_tokens", 0))
+        completion_tokens = int(usage_data.get("output_tokens", 0))
         total_tokens = int(usage_data.get("total_tokens", 0))
         estimated_cost = None
         if self._settings.pricing:
@@ -212,6 +207,20 @@ def _strip_json_fence(content: str) -> str:
             lines = lines[1:]
         cleaned = "\n".join(lines).strip()
     return cleaned
+
+
+def _extract_response_text(data: dict[str, Any]) -> str:
+    output_items = data.get("output", [])
+    for item in output_items:
+        for content in item.get("content", []):
+            if content.get("type") == "output_text":
+                text = content.get("text", "")
+                if text:
+                    return text.strip()
+    text = data.get("output_text")
+    if isinstance(text, str):
+        return text.strip()
+    return ""
 
 
 def _sum_usage_cost(path: Path) -> float:
