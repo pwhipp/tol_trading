@@ -1,24 +1,23 @@
 import sys
-from pathlib import Path
 
 
 def handle_run(args) -> None:
     from tol.parser.dag import compute_execution_levels
     from tol.parser.planner import plan_actions
-    from tol.load import load_tol
+    from tol.load import load_tol_text
 
-    tol_file: Path = args.tol_file
     mode = args.mode
     dry_run = args.dry_run
+    tol_text = sys.stdin.read()
 
     print("TOL CLI — Proof of Concept")
     print("-" * 40)
 
-    if not tol_file.exists():
-        print(f"ERROR: TOL file not found: {tol_file}")
+    if not tol_text.strip():
+        print("ERROR: No TOL document provided on stdin.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"TOL file        : {tol_file}")
+    print("TOL input       : stdin")
     print(f"Execution mode  : {mode}")
 
     if dry_run:
@@ -75,7 +74,7 @@ def handle_run(args) -> None:
     print("Derived execution plan:")
     print("-" * 20)
 
-    tol_doc = load_tol(tol_file)
+    tol_doc = load_tol_text(tol_text)
     actions = plan_actions(tol_doc)
 
     if dry_run == "portfolio":

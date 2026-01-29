@@ -1,0 +1,24 @@
+import sys
+
+from tol.load import dump_tol
+from tol.llm.client import ChatGptClient
+
+
+def handle_generate(args) -> None:
+    prompt_text = sys.stdin.read()
+    if not prompt_text.strip():
+        print("ERROR: No natural language request provided on stdin.", file=sys.stderr)
+        sys.exit(1)
+
+    client = ChatGptClient.from_config(model_override=args.model)
+
+    try:
+        response = client.generate_tol(prompt_text)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    for warning in response.warnings:
+        print(f"WARNING: {warning}", file=sys.stderr)
+
+    print(dump_tol(response.document))
