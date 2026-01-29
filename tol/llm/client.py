@@ -258,10 +258,7 @@ def _format_api_error(status_code: int, detail: str) -> str:
     error_message = parsed.get("message") or detail
     error_code = parsed.get("code")
     if error_code == "insufficient_quota":
-        return (
-            f"{message} {error_message}. "
-            "Check your API plan/billing or API key; this is independent of spend_limit_usd."
-        )
+        return f"{message} {error_message}".strip()
     return f"{message} {error_message}".strip()
 
 

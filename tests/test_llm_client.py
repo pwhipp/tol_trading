@@ -10,4 +10,4 @@ def test_format_api_error_with_quota_message() -> None:
 
     assert "HTTP 429" in message
     assert "You exceeded your current quota" in message
-    assert "independent of spend_limit_usd" in message
+    assert "independent of spend_limit_usd" not in message
