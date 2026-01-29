@@ -92,6 +92,7 @@ class ChatGptClient:
         )
 
     def _chat(self, messages: list[dict[str, str]]) -> LlmResponse:
+        self._enforce_spend_limit()
         payload = {
             "model": self._settings.model,
             "messages": messages,
@@ -138,6 +139,20 @@ class ChatGptClient:
                 warnings.append(warning)
 
         return LlmResponse(content=content, usage=usage, warnings=warnings)
+
+    def _enforce_spend_limit(self) -> None:
+        if (
+            self._settings.spend_limit_usd is None
+            or self._settings.usage_log_path is None
+            or self._settings.pricing is None
+        ):
+            return
+
+        total_spend = _sum_usage_cost(self._settings.usage_log_path)
+        if total_spend >= self._settings.spend_limit_usd:
+            raise RuntimeError(
+                "Usage spend limit reached. Increase spend_limit_usd in the config."
+            )
 
     def _parse_usage(self, data: dict[str, Any]) -> LlmUsage | None:
         usage_data = data.get("usage")
@@ -197,3 +212,28 @@ def _strip_json_fence(content: str) -> str:
             lines = lines[1:]
         cleaned = "\n".join(lines).strip()
     return cleaned
+
+
+def _sum_usage_cost(path: Path) -> float:
+    if not path.exists():
+        return 0.0
+    total = 0.0
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                cost = payload.get("estimated_cost")
+                if cost is None:
+                    continue
+                try:
+                    total += float(cost)
+                except (TypeError, ValueError):
+                    continue
+    except OSError:
+        return 0.0
+    return total

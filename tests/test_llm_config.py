@@ -15,6 +15,7 @@ def test_load_settings_creates_default_file(tmp_path: Path, monkeypatch: pytest.
     assert config_path.exists()
     assert settings.model == "gpt-4o-mini"
     assert settings.base_url == "https://api.openai.com/v1/chat/completions"
+    assert settings.spend_limit_usd == 1000.0
 
 
 def test_set_and_get_setting_round_trip(

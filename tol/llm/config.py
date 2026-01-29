@@ -17,6 +17,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "usage_log_path": None,
     "input_cost_per_1k": None,
     "output_cost_per_1k": None,
+    "spend_limit_usd": 1000.0,
 }
 
 SETTING_PARSERS: dict[str, Callable[[str], Any]] = {
@@ -29,6 +30,7 @@ SETTING_PARSERS: dict[str, Callable[[str], Any]] = {
     "usage_log_path": str,
     "input_cost_per_1k": float,
     "output_cost_per_1k": float,
+    "spend_limit_usd": float,
 }
 
 
@@ -82,7 +84,12 @@ def set_setting(settings: LlmSettings, key: str, raw_value: str) -> LlmSettings:
     if key not in SETTING_PARSERS:
         raise KeyError(f"Unknown setting: {key}")
     parser = SETTING_PARSERS[key]
-    if raw_value == "" and key in {"usage_log_path", "input_cost_per_1k", "output_cost_per_1k"}:
+    if raw_value == "" and key in {
+        "usage_log_path",
+        "input_cost_per_1k",
+        "output_cost_per_1k",
+        "spend_limit_usd",
+    }:
         value: Any = None
     else:
         value = parser(raw_value)

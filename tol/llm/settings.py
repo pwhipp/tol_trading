@@ -26,6 +26,7 @@ class LlmSettings:
     max_tokens: int
     usage_log_path: Path | None
     pricing: LlmPricing | None
+    spend_limit_usd: float | None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LlmSettings":
@@ -53,6 +54,7 @@ class LlmSettings:
             max_tokens=int(data.get("max_tokens", 512)),
             usage_log_path=Path(usage_log_path) if usage_log_path else None,
             pricing=pricing,
+            spend_limit_usd=_optional_float(data.get("spend_limit_usd")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,11 +70,18 @@ class LlmSettings:
             else None,
             "input_cost_per_1k": None,
             "output_cost_per_1k": None,
+            "spend_limit_usd": self.spend_limit_usd,
         }
         if self.pricing:
             data["input_cost_per_1k"] = self.pricing.input_cost_per_1k
             data["output_cost_per_1k"] = self.pricing.output_cost_per_1k
         return data
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    return float(value)
 
 
 __all__ = ["LlmPricing", "LlmSettings"]
