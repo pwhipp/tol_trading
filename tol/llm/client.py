@@ -118,7 +118,7 @@ class ChatGptClient:
         except error.HTTPError as exc:
             detail = exc.read().decode("utf-8") if exc.fp else ""
             raise RuntimeError(
-                f"ChatGPT API error: HTTP {exc.code} {detail}".strip()
+                _format_api_error(exc.code, detail)
             ) from exc
         except error.URLError as exc:
             raise RuntimeError(f"ChatGPT API connection error: {exc}") from exc
@@ -246,3 +246,33 @@ def _sum_usage_cost(path: Path) -> float:
     except OSError:
         return 0.0
     return total
+
+
+def _format_api_error(status_code: int, detail: str) -> str:
+    message = f"ChatGPT API error: HTTP {status_code}"
+    if not detail:
+        return message
+    parsed = _parse_error_payload(detail)
+    if not parsed:
+        return f"{message} {detail}".strip()
+    error_message = parsed.get("message") or detail
+    error_code = parsed.get("code")
+    if error_code == "insufficient_quota":
+        return (
+            f"{message} {error_message}. "
+            "Check your API plan/billing or API key; this is independent of spend_limit_usd."
+        )
+    return f"{message} {error_message}".strip()
+
+
+def _parse_error_payload(detail: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(detail)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    error_data = payload.get("error")
+    if isinstance(error_data, dict):
+        return error_data
+    return None
