@@ -1,4 +1,14 @@
-# Trading Orchestration Language (TOL)
+<h1>
+  Trading Orchestration Language (TOL)
+  <span style="float: right;">
+    <a href="https://creativecommons.org/licenses/by-nc/4.0/">
+      <img
+        src="https://licensebuttons.net/l/by-nc/4.0/88x31.png"
+        alt="License: CC BY-NC 4.0"
+      />
+    </a>
+  </span>
+</h1>
 
 ## What is TOL?
 
@@ -112,3 +122,13 @@ TOL gives you those guarantees — and nothing more.
 4. Use tol run to execute (paper or live)
 
 TOL is a tool for traders who value clarity over cleverness.
+
+## License
+
+This project is licensed under the **Creative Commons Attribution–NonCommercial 4.0 International (CC BY-NC 4.0)** license.
+
+You are free to use, modify, and adapt this work for non-commercial purposes, provided appropriate credit is given.
+
+Commercial use is not permitted without explicit permission from the author.
+
+See the LICENSE file for full details.
