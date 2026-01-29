@@ -10,7 +10,6 @@ class TestCliMain(unittest.TestCase):
         parser = build_parser()
         args = parser.parse_args([
             "run",
-            "example.yaml",
             "--mode",
             "paper",
             "--dry-run",
@@ -18,7 +17,6 @@ class TestCliMain(unittest.TestCase):
         ])
 
         self.assertEqual(args.command, "run")
-        self.assertEqual(args.tol_file.name, "example.yaml")
         self.assertEqual(args.mode, "paper")
         self.assertEqual(args.dry_run, "local")
 
@@ -31,7 +29,7 @@ class TestCliMain(unittest.TestCase):
 
     def test_run_command_default_dry_run(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["run", "example.yaml", "--mode", "paper"])
+        args = parser.parse_args(["run", "--mode", "paper"])
 
         self.assertEqual(args.dry_run, None)
 
@@ -48,6 +46,28 @@ class TestCliMain(unittest.TestCase):
         self.assertIn("validates the TOL file only", help_text)
         self.assertIn("queries holdings and prices", help_text)
         self.assertIn("connects to IBKR", help_text)
+
+    def test_describe_command_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["describe"])
+
+        self.assertEqual(args.command, "describe")
+        self.assertIsNone(args.model)
+
+    def test_generate_command_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["generate", "--model", "gpt-4o-mini"])
+
+        self.assertEqual(args.command, "generate")
+        self.assertEqual(args.model, "gpt-4o-mini")
+
+    def test_config_command_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["config", "get", "model"])
+
+        self.assertEqual(args.command, "config")
+        self.assertEqual(args.config_command, "get")
+        self.assertEqual(args.key, "model")
 
 
 if __name__ == "__main__":

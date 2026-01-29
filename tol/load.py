@@ -8,7 +8,15 @@ import json
 
 def load_tol(path: Path) -> dict[str, Any]:
     tol_doc = _read_tol_file(path)
+    return normalize_tol_document(tol_doc)
 
+
+def load_tol_text(text: str) -> dict[str, Any]:
+    tol_doc = _read_tol_text(text)
+    return normalize_tol_document(tol_doc)
+
+
+def normalize_tol_document(tol_doc: dict[str, Any] | None) -> dict[str, Any]:
     if not tol_doc:
         return {}
 
@@ -17,6 +25,21 @@ def load_tol(path: Path) -> dict[str, Any]:
         tol_doc["actions"] = [_normalize_action(action) for action in actions]
 
     return tol_doc
+
+
+def dump_tol(tol_doc: dict[str, Any]) -> str:
+    try:
+        import yaml
+    except ModuleNotFoundError:
+        yaml = None
+
+    if yaml is not None:
+        return yaml.safe_dump(
+            tol_doc,
+            sort_keys=False,
+            default_flow_style=False,
+        )
+    return json.dumps(tol_doc, indent=2)
 
 
 def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
@@ -116,3 +139,14 @@ def _read_tol_file(path: Path) -> dict[str, Any]:
         if yaml is not None:
             return yaml.safe_load(file_handle)
         return json.load(file_handle)
+
+
+def _read_tol_text(text: str) -> dict[str, Any]:
+    try:
+        import yaml
+    except ModuleNotFoundError:
+        yaml = None
+
+    if yaml is not None:
+        return yaml.safe_load(text)
+    return json.loads(text)

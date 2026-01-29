@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tol.load import load_tol
+from tol.load import dump_tol, load_tol, load_tol_text
 
 
 def test_load_converts_all_and_percent(tmp_path: Path) -> None:
@@ -78,3 +78,20 @@ def test_load_parses_target_percent_string(tmp_path: Path) -> None:
 
     tol_doc = load_tol(tol_file)
     assert tol_doc["actions"][0]["target"]["percent"] == 25.0
+
+
+def test_load_from_text_and_dump_round_trip() -> None:
+    source = """
+{
+  "version": 1,
+  "actions": [
+    {"sell": {"symbol": "NVDA", "quantity": "50%"}}
+  ]
+}
+"""
+    tol_doc = load_tol_text(source)
+    assert tol_doc["actions"][0]["sell"]["quantity"] == 0.5
+
+    dumped = dump_tol(tol_doc)
+    reloaded = load_tol_text(dumped)
+    assert reloaded["actions"][0]["sell"]["quantity"] == 0.5
