@@ -5,8 +5,6 @@ import json
 from pathlib import Path
 import time
 from typing import Any
-from urllib import request, error
-
 from tol.load import normalize_tol_document
 from tol.llm.config import load_settings
 from tol.llm.settings import LlmSettings
@@ -37,10 +35,17 @@ class LlmDocumentResponse:
 class ChatGptClient:
     def __init__(self, settings: LlmSettings) -> None:
         self._settings = settings
+        import openai as openai_module
+
+        self._openai = openai_module
         if not self._settings.api_key:
             raise RuntimeError(
                 "Missing API key. Set api_key in the TOL config file."
             )
+        self._client = self._openai.OpenAI(
+            api_key=self._settings.api_key,
+            base_url=self._settings.base_url,
+        )
 
     @classmethod
     def from_config(cls, model_override: str | None = None) -> "ChatGptClient":
@@ -93,39 +98,24 @@ class ChatGptClient:
 
     def _chat(self, messages: list[dict[str, str]]) -> LlmResponse:
         self._enforce_spend_limit()
-        payload = {
-            "model": self._settings.model,
-            "input": messages,
-            "temperature": self._settings.temperature,
-            "max_output_tokens": self._settings.max_tokens,
-        }
-        data = json.dumps(payload).encode("utf-8")
-        request_obj = request.Request(
-            self._settings.base_url,
-            data=data,
-            headers={
-                "Authorization": f"Bearer {self._settings.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-
         try:
-            with request.urlopen(
-                request_obj, timeout=self._settings.timeout_seconds
-            ) as response:
-                body = response.read().decode("utf-8")
-        except error.HTTPError as exc:
-            detail = exc.read().decode("utf-8") if exc.fp else ""
+            response = self._client.responses.create(
+                model=self._settings.model,
+                input=messages,
+                temperature=self._settings.temperature,
+                max_output_tokens=self._settings.max_tokens,
+                timeout=self._settings.timeout_seconds,
+            )
+        except self._openai.APIStatusError as exc:
             raise RuntimeError(
-                _format_api_error(exc.code, detail)
+                _format_api_error(exc.status_code, exc.response.text)
             ) from exc
-        except error.URLError as exc:
-            raise RuntimeError(f"ChatGPT API connection error: {exc}") from exc
+        except self._openai.APIError as exc:
+            raise RuntimeError(f"ChatGPT API error: {exc}") from exc
 
-        data = json.loads(body)
-        content = _extract_response_text(data)
-        usage = self._parse_usage(data)
+        response_data = response.model_dump()
+        content = _extract_response_text(response_data)
+        usage = self._parse_usage(response_data)
         warnings: list[str] = []
 
         if usage and self._settings.usage_log_path:

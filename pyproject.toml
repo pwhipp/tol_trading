@@ -10,6 +10,7 @@ requires-python = ">=3.12"
 
 dependencies = [
     "ib-insync>=0.9.86",
+    "openai>=1.75.0",
     "PyYAML>=6.0.2",
     "tzdata>=2025.3"
 ]
