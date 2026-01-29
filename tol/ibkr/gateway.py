@@ -10,8 +10,8 @@ class IBKRGateway:
         self.ib = IB()
 
     def connect(self):
-        port = 7497 if self.mode == "paper" else 7496
-        self.ib.connect("127.0.0.1", port=port, clientId=991, timeout=5)
+        port = 4002 if self.mode == "paper" else 4001
+        self.ib.connect("127.0.0.1", port=port, clientId=1, timeout=5)
 
     def disconnect(self):
         self.ib.disconnect()
