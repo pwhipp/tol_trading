@@ -1,13 +1,11 @@
 # Trading Orchestration Language (TOL)
 
-<span style="float: right;">
-<a href="https://creativecommons.org/licenses/by-nc/4.0/">
-  <img
-    src="https://licensebuttons.net/l/by-nc/4.0/88x31.png"
-    alt="License: CC BY-NC 4.0"
-  />
-</a>
-</span>
+<div style="text-align: right;">
+  <a href="https://creativecommons.org/licenses/by-nc/4.0/">
+    <img src="https://licensebuttons.net/l/by-nc/4.0/88x31.png"
+         alt="License: CC BY-NC 4.0">
+  </a>
+</div>
 
 ## What is TOL?
 
