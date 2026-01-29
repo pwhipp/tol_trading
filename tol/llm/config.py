@@ -7,30 +7,25 @@ import os
 from tol.llm.settings import LlmSettings
 
 
-DEFAULT_SETTINGS: dict[str, Any] = {
-    "api_key": "",
-    "base_url": "https://api.openai.com/v1/chat/completions",
-    "model": "gpt-4o-mini",
-    "timeout_seconds": 30.0,
-    "temperature": 0.2,
-    "max_tokens": 512,
-    "usage_log_path": None,
-    "input_cost_per_1k": None,
-    "output_cost_per_1k": None,
-    "spend_limit_usd": 1000.0,
+CONFIG_PARAMS: dict[str, dict[str, Any]] = {
+    "api_key": {"default": "", "parser": str},
+    "base_url": {
+        "default": "https://api.openai.com/v1/responses",
+        "parser": str,
+    },
+    "model": {"default": "gpt-4o-mini", "parser": str},
+    "timeout_seconds": {"default": 30.0, "parser": float},
+    "temperature": {"default": 0.2, "parser": float},
+    "max_tokens": {"default": 50000, "parser": int},
+    "usage_log_path": {"default": None, "parser": str},
+    "input_cost_per_1k": {"default": None, "parser": float},
+    "output_cost_per_1k": {"default": None, "parser": float},
+    "spend_limit_usd": {"default": 1000.0, "parser": float},
 }
 
-SETTING_PARSERS: dict[str, Callable[[str], Any]] = {
-    "api_key": str,
-    "base_url": str,
-    "model": str,
-    "timeout_seconds": float,
-    "temperature": float,
-    "max_tokens": int,
-    "usage_log_path": str,
-    "input_cost_per_1k": float,
-    "output_cost_per_1k": float,
-    "spend_limit_usd": float,
+
+DEFAULT_SETTINGS: dict[str, Any] = {
+    key: value["default"] for key, value in CONFIG_PARAMS.items()
 }
 
 
@@ -74,16 +69,16 @@ def dump_settings(settings: LlmSettings, stream) -> None:
 
 
 def get_setting(settings: LlmSettings, key: str) -> Any:
-    if key not in DEFAULT_SETTINGS:
+    if key not in CONFIG_PARAMS:
         raise KeyError(f"Unknown setting: {key}")
     payload = settings.to_dict()
     return payload.get(key)
 
 
 def set_setting(settings: LlmSettings, key: str, raw_value: str) -> LlmSettings:
-    if key not in SETTING_PARSERS:
+    if key not in CONFIG_PARAMS:
         raise KeyError(f"Unknown setting: {key}")
-    parser = SETTING_PARSERS[key]
+    parser = CONFIG_PARAMS[key]["parser"]
     if raw_value == "" and key in {
         "usage_log_path",
         "input_cost_per_1k",
