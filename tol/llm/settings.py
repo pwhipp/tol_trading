@@ -45,7 +45,7 @@ class LlmSettings:
             base_url=str(
                 data.get(
                     "base_url",
-                    "https://api.openai.com/v1/responses",
+                    "https://api.openai.com/v1",
                 )
             ),
             model=str(data.get("model", "gpt-4o-mini")),

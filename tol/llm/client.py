@@ -44,7 +44,7 @@ class ChatGptClient:
             )
         self._client = self._openai.OpenAI(
             api_key=self._settings.api_key,
-            base_url=self._settings.base_url,
+            base_url=_normalize_base_url(self._settings.base_url),
         )
 
     @classmethod
@@ -263,3 +263,10 @@ def _parse_error_payload(detail: str) -> dict[str, Any] | None:
     if isinstance(error_data, dict):
         return error_data
     return None
+
+
+def _normalize_base_url(base_url: str) -> str:
+    cleaned = base_url.rstrip("/")
+    if cleaned.endswith("/responses"):
+        cleaned = cleaned[: -len("/responses")]
+    return cleaned

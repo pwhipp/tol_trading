@@ -10,7 +10,7 @@ from tol.llm.settings import LlmSettings
 CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     "api_key": {"default": "", "parser": str},
     "base_url": {
-        "default": "https://api.openai.com/v1/responses",
+        "default": "https://api.openai.com/v1",
         "parser": str,
     },
     "model": {"default": "gpt-4o-mini", "parser": str},
