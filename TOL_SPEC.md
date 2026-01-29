@@ -1,229 +1,288 @@
-# Trading Orchestration Language (TOL) — Specification
+# Trading Orchestration Language (TOL)
+## Version 1 — Normative Specification
 
-This document defines the **formal semantics** of the Trading Orchestration Language (TOL).
+## 1. Introduction
 
-TOL is a **declarative orchestration language** for executing multistep trades safely and deterministically.
-It specifies *what* trades should occur and *how they relate*, not *why* they were chosen.
+The Trading Orchestration Language (TOL) is a declarative language for
+describing multistep trading operations in a deterministic, auditable,
+and dependency-aware manner.
 
-This specification is **normative**.
+TOL specifies *what* trades should occur and *how they relate*.
+It does not specify *why* trades are chosen.
+
+This document defines the **normative semantics** of TOL.
 
 ---
 
-## 1. Design goals
+## 2. Conformance Language
+
+The keywords **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**,
+**SHOULD**, **SHOULD NOT**, **RECOMMENDED**, **MAY**, and **OPTIONAL**
+in this document are to be interpreted as described in RFC 2119.
+
+---
+
+## 3. Design Goals
 
 TOL is designed to be:
 
-- **Human-readable**
-- **Deterministic**
-- **Crash-safe**
-- **Dependency-driven**
-- **Minimal**
+- Deterministic
+- Dependency-driven
+- Crash-safe
+- Human-readable
+- Minimal
 
-TOL is intentionally **not** a trading strategy language.
-
----
-
-## 2. Document structure
-
-```yaml
-version: 1
-
-settings:
-  mode: paper | live
-
-actions:
-  - <action_type>:
-      ...
-```
-
-- `settings.mode` must be specified and explicitly selects `paper` or `live` trading.
-- `actions` is an ordered list; declaration order is significant for resolution.
+TOL is intentionally not a trading strategy language.
 
 ---
 
-## 3. Actions and identifiers
+## 4. Abstract Model
 
-An **action**:
+This section defines the abstract entities and invariants of TOL.
+No execution semantics are defined here.
 
-- Is one entry in the `actions` list
-- Has exactly one `action_type`
-- Executes at most once
+### 4.1 Document
 
-Actions form a **directed acyclic graph (DAG)**.
-
-### 3.1 Derived action identifiers
-
-Actions do **not** explicitly declare identifiers.
-
-Instead, the interpreter derives a stable identifier for each action using the convention:
+A TOL document (D) is a mapping with the following fields:
 
 ```
-<actionType><TICKER>
+    D = {
+        version: ℕ,
+        mode: {paper, live},
+        actions: [a₁, a₂, …, aₙ]
+    }
 ```
 
-Where:
-- `<actionType>` is the action name in camelCase (`sell`, `buy`, `target`)
-- `<TICKER>` is the instrument ticker in upper case
+The order of `actions` is significant and MUST be preserved.
 
-Examples:
-- `sellNVDA`
-- `buyTSLA`
-- `targetVOO`
+### 4.2 Actions
 
-These derived identifiers:
+Each action (A) in D.actions is defined as a mapping with the following fields:
 
-- Are stable and deterministic
-- Are used internally by the interpreter
-- May be referenced in `using` clauses when needed
-
-If multiple actions of the same type and ticker appear, the interpreter must disambiguate deterministically (e.g. by declaration order).
-
----
-
-## 4. Supported action types
-
-- `sell`
-- `buy`
-- `target`
-
----
-
-## 5. Quantity model (unified)
-
-All BUY and SELL actions use a single quantity model.
-
-A quantity may be expressed as:
-
-| Form       | Meaning                                      |
-|------------|----------------------------------------------|
-| Integer    | Number of shares                             |
-| Percentage | Percentage of available amount               |
-| Currency   | Monetary value                               |
-| `ALL`      | Entire available amount (equivalent to 100%) |
-
-**A quantity is always interpreted relative to the action type and its context.**
-
----
-
-## 6. SELL action
-
-### Purpose
-Dispose of an existing holding.
-
-### Schema
-```yaml
-sell:
-  symbol: <TICKER>
-  quantity: <quantity>
+```
+    A = {
+        [action_type ∈ {sell, buy, target}]:
+            {
+                symbol: ∈ TICKERS,
+                *parameters: defined by action type below
+            }
+        }
 ```
 
-### Semantics
-- SELL actions operate only on existing holdings
-- SELL actions never depend on other actions
-- All SELL actions may execute concurrently
-- Each SELL action produces proceeds usable by later actions
+Each action executes at most once.
+
+### 4.3 Derived Action Identifier
+
+Each action has a derived identifier:
+
+    id(a) = lower(type) ∘ upper(symbol)
+
+This identifier is used for dependency resolution.
+
+**Invariance rule:**
+
+For any two distinct actions `aᵢ` and `aⱼ`:
+
+    id(aᵢ) ≠ id(aⱼ)
+
+Documents violating this invariant are invalid and MUST be rejected.
+
+> **Rationale**
+>
+> Actions with identical type and symbol are always reducible.
+> Requiring uniqueness eliminates ambiguity and ensures deterministic execution.
+
+### 4.4 Instruments and Tickers
+
+A **ticker** is a string identifier that names a tradable instrument
+within the execution environment.
+
+Let:
+
+    TICKERS = the set of all ticker identifiers recognized by the
+              execution environment.
+
+The TOL specification does not define the contents of `TICKERS`.
+Membership in `TICKERS` is determined at execution time by the
+underlying broker or execution adapter.
+
+### 4.5 Action Parameters
+
+- **sell**
+
+  parameters = {quantity}
+
+
+- **buy**
+
+  parameters = {quantity, using}
+
+- **target**
+
+  parameters = {percent, using}
+
+### 4.5.1 Action Parameter Definitions
+
+This section defines the parameters used by TOL actions.
+Each parameter is defined independently of the actions that use it.
+
+##### 4.5.1.1 quantity
+
+A **quantity** specifies an amount to be bought or sold.
+
+A quantity MUST be exactly one of the following:
+
+- **Absolute quantity**  
+  A positive integer representing a number of units (e.g. 100).
+
+- **Percentage quantity**  
+  A percentage value as defined in [Section 4.5.3.3](#4533-percent) (e.g. 50%).
+
+- **Monetary quantity**  
+  A currency-denominated monetary value (e.g. $100).
+
+- `ALL`  
+  A special value representing the entire available amount (e.g. ALL).
+
+The interpretation of a quantity is context-dependent and depends on:
+- the action type (BUY or SELL)
+- the available sources at execution time#### 4.5.1 Quantity
+
+##### 4.5.1.2 using
+
+The **using** parameter specifies the funding sources available to a BUY
+or TARGET action.
+
+The value of `using` MUST be a non-empty set of sources.
+
+Each source MUST be one of:
+- `CASH` (e.g. CASH)
+- one of TICKERS ([Section 4.4](#44-instruments-and-tickers)) (e.g. VOO)
+- a derived identifier of a SELL action (e.g. sellTSLA)
+
+If omitted, the default value of `using` is `[ CASH ]`.
+
+The order of sources in `using` is not significant.
+
+##### 4.5.3.3 percent
+
+The **percent** parameter represents a fractional proportion of an available amount.
+
+A percent value MUST:
+- be syntactically expressed with a trailing `%` symbol
+- represent a value strictly greater than `0%`
+- represent a value less than or equal to `100%`
+
+e.g. 50%
+
+A percent actual quantity is resolved at execution time relative to the available value
+of the relevant sources.
 
 ---
 
-## 7. BUY action
+## 5. Semantics
 
-### Purpose
-Acquire a holding.
+### 5.1 Static Semantics
 
-### Schema
-```yaml
-buy:
-  symbol: <TICKER>
-  quantity: <quantity>
-  using:
-    - CASH
-    - <derivedActionId>
-    - <TICKER>
-```
+A TOL document is well-formed if and only if all the following hold:
 
-The `using` property defaults to [CASH].
+1. `version` and `mode` are present and valid.
+2. Each action contains exactly one action type.
+3. `(type, symbol)` pairs are unique across all actions.
+4. BUY and TARGET actions reference only valid sources.
+5. Derived action identifiers may only reference SELL actions declared earlier in the same document.
+6. TARGET actions MUST NOT reference other TARGET actions.
+7. The implied dependency graph MUST be acyclic.
 
-### Semantics
-- BUY actions depend on all referenced sources in `using`
-- Quantity is interpreted relative to the total value of those sources
-- BUY actions execute only once all dependencies are resolved
-- If insufficient value exists to satisfy the quantity, the action fails
-- BUY actions referencing the same sources are resolved in declaration order
+Documents that are not well-formed MUST be rejected prior to execution.
 
----
+### 5.2 Dependency Semantics
 
-## 8. TARGET action
+Actions form a directed acyclic graph (DAG).
 
-### Purpose
-Express a desired portfolio state.
+- SELL actions introduce no dependencies.
+- BUY and TARGET actions depend on all referenced sources.
+- Dependencies are resolved implicitly; no explicit dependency syntax exists.
 
-### Schema
-```yaml
-target:
-  symbol: <TICKER>
-  percent: <percentage>
-  using:
-    - CASH
-    - <TICKER>
-```
+Execution order is derived via topological sorting.
+Where multiple actions are eligible, declaration order MUST be respected.
 
-The `using` property defaults to [CASH].
+### 5.3 Dynamic Semantics
 
-### Semantics
-The interpreter must:
+Dynamic semantics describe how TOL actions interact with the execution
+environment at runtime.
 
-1. Compute current portfolio value
-2. Compute the desired value for the target symbol
-3. Determine the required delta
-4. Generate implicit BUY and/or SELL actions
-5. Execute them using normal dependency rules
+Execution occurs relative to a **portfolio state**, which includes:
+- available cash balances
+- current holdings
+- any other execution-environment–specific constraints
 
-TARGET actions:
-- Must not depend on other TARGET actions
-- Are resolved in declaration order
-- Fail if the target cannot be satisfied using the specified sources
+The TOL specification does not define the structure or contents of the
+portfolio state beyond what is required to evaluate action feasibility.
 
----
+At runtime:
 
-## 9. Dependency inference
+- A SELL action is feasible only if the portfolio contains a sufficient
+  holding of the specified instrument.
+- A BUY action is feasible only if the portfolio provides sufficient
+  value from the specified `using` sources.
+- A TARGET action is feasible only if the required implicit BUY and/or
+  SELL actions are feasible when evaluated.
 
-Dependencies are inferred when:
-- A BUY or TARGET references a derived action identifier
-- A BUY or TARGET references an existing holding
+Insufficient holdings, insufficient funds, or invalid instruments are
+runtime errors and MUST be reported as execution failures.
 
-SELL actions never introduce dependencies.
+### 5.4 Execution Semantics
 
-Execution order is derived automatically.
+Execution proceeds as follows:
 
----
+1. The document is validated for well-formedness.
+2. TARGET actions are expanded into implicit BUY and/or SELL actions.
+3. Actions execute in dependency order.
+4. An action executes only after:
+   - all dependencies have completed successfully, and
+   - the action is dynamically feasible ([Section 5.3](#53-dynamic-semantics)).
+5. Each action executes at most once.
 
-## 10. Execution guarantees
-
-A compliant interpreter guarantees:
-
-- Deterministic execution
-- No repeated actions
-- Crash-safe resumption
-- Clear error reporting
-- Reviewable execution plans
+If an action fails:
+- Execution MUST halt.
+- Successfully completed actions MUST NOT be retried.
+- The document is considered partially executed.
 
 ---
 
-## 11. Explicit non-goals
+## 8. Error Conditions
 
-TOL does **not** support:
+A TOL interpreter MUST report errors clearly and deterministically, including:
 
-- Conditionals
+- Invalid document structure
+- Duplicate action identifiers
+- Invalid or unresolved dependencies
+- Insufficient funds or holdings
+- Execution failures
+
+---
+
+## 9. Explicit Non-Goals
+
+TOL does not define, and will not define:
+
+- Trading strategies
+- Conditional logic
+- Time-based execution
+- Market indicators
 - Arithmetic expressions
-- Indicators
-- Strategy logic
-- Iteration
-- Time-based behaviour
+- Risk management policies
 
-These belong outside TOL.
+These concerns MUST be handled outside the TOL document.
 
 ---
 
-## 12. Status
+## 10. Versioning and Compatibility
 
-This specification defines the MVP semantics of TOL.
+Future versions of TOL MAY extend the language.
+Backward-incompatible changes MUST increment the major version number.
+
+## Appendix A JSON Schema
+
+See [TOL_JSON_SCHEMA.json](TOL_JSON_SCHEMA.json).

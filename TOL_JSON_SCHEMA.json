@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/tol.schema.json",
+  "title": "Trading Orchestration Language (TOL) v1",
+  "type": "object",
+  "required": ["version", "mode", "actions"],
+  "additionalProperties": false,
+
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "TOL language version"
+    },
+
+    "mode": {
+      "type": "string",
+      "enum": ["paper", "live"]
+    },
+
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/action" }
+    }
+  },
+
+  "$defs": {
+    "ticker": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Ticker symbol (validated at runtime)"
+    },
+
+    "percent": {
+      "type": "string",
+      "pattern": "^(100|[1-9][0-9]?|0\\.[0-9]+)%$",
+      "description": "Percentage > 0% and ≤ 100%"
+    },
+
+    "quantity": {
+      "oneOf": [
+        { "type": "integer", "minimum": 1 },
+        { "$ref": "#/$defs/percent" },
+        {
+          "type": "string",
+          "pattern": "^\\$[0-9]+(\\.[0-9]{1,2})?$"
+        },
+        {
+          "type": "string",
+          "enum": ["ALL"]
+        }
+      ]
+    },
+
+    "using": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+
+    "sellAction": {
+      "type": "object",
+      "required": ["symbol", "quantity"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "$ref": "#/$defs/ticker" },
+        "quantity": { "$ref": "#/$defs/quantity" }
+      }
+    },
+
+    "buyAction": {
+      "type": "object",
+      "required": ["symbol", "quantity"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "$ref": "#/$defs/ticker" },
+        "quantity": { "$ref": "#/$defs/quantity" },
+        "using": { "$ref": "#/$defs/using" }
+      }
+    },
+
+    "targetAction": {
+      "type": "object",
+      "required": ["symbol", "percent"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "$ref": "#/$defs/ticker" },
+        "percent": { "$ref": "#/$defs/percent" },
+        "using": { "$ref": "#/$defs/using" }
+      }
+    },
+
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["sell"],   "properties": { "sell":   { "$ref": "#/$defs/sellAction" } } },
+        { "required": ["buy"],    "properties": { "buy":    { "$ref": "#/$defs/buyAction" } } },
+        { "required": ["target"], "properties": { "target": { "$ref": "#/$defs/targetAction" } } }
+      ]
+    }
+  }
+}
