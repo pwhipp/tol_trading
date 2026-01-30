@@ -56,10 +56,10 @@ class TestCliMain(unittest.TestCase):
 
     def test_generate_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["generate", "--llm-model", "gpt-4o-mini"])
+        args = parser.parse_args(["generate", "--llm-model", "gpt-5"])
 
         self.assertEqual(args.command, "generate")
-        self.assertEqual(args.llm_model, "gpt-4o-mini")
+        self.assertEqual(args.llm_model, "gpt-5")
 
     def test_config_command_parsing(self) -> None:
         parser = build_parser()

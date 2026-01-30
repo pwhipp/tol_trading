@@ -7,6 +7,9 @@ from tol.cli.handlers.generate import handle_generate
 from tol.cli.handlers.run import handle_run
 
 OPENAI_LLM_MODELS = (
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
     "gpt-4o-mini",
     "gpt-4o",
     "gpt-4.1-mini",
