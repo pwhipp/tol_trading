@@ -230,6 +230,13 @@ def _generate_system_message() -> dict[str, str]:
             "- If a valid document cannot be produced, output:\n"
             '  {"error": "<reason>"}\n'
             "- Do NOT include explanations, markdown, or extra text."
+            "\n- Use BUY actions with quantity percentages when allocating sell "
+            "proceeds across symbols; do not use TARGET for proceeds "
+            "allocation.\n"
+            "- Use TARGET only when the user specifies desired portfolio "
+            "percent ownership.\n"
+            "- TARGET percent values must be strings with a trailing '%' "
+            "symbol (e.g., \"66%\")."
         ),
     }
 

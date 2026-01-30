@@ -52,3 +52,4 @@ def test_generate_system_message_has_rules() -> None:
     assert message["role"] == "system"
     assert "Output JSON only." in message["content"]
     assert '{"error": "<reason>"}' in message["content"]
+    assert "do not use TARGET for proceeds allocation" in message["content"]
