@@ -15,7 +15,10 @@ def test_load_settings_creates_default_file(tmp_path: Path, monkeypatch: pytest.
     assert config_path.exists()
     assert settings.model == "gpt-4o-mini"
     assert settings.base_url == "https://api.openai.com/v1"
-    assert settings.spend_limit_usd == 1000.0
+    assert settings.usage_log_path == Path("llm_usage.log")
+    assert settings.usage_log_level == "INFO"
+    assert settings.api_log_path == Path("llm_api.log")
+    assert settings.api_log_level == "INFO"
 
 
 def test_set_and_get_setting_round_trip(

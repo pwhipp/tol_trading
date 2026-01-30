@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 import json
+import logging
 from pathlib import Path
 import time
 from typing import Any
+
+from jinja2 import Environment, FileSystemLoader
 from tol.load import normalize_tol_document
 from tol.llm.config import load_settings
 from tol.llm.settings import LlmSettings
@@ -15,7 +19,6 @@ class LlmUsage:
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
-    estimated_cost: float | None = None
 
 
 @dataclass
@@ -35,6 +38,16 @@ class LlmDocumentResponse:
 class ChatGptClient:
     def __init__(self, settings: LlmSettings) -> None:
         self._settings = settings
+        self._usage_logger, self._usage_log_warning = _build_file_logger(
+            "tol.llm.usage",
+            self._settings.usage_log_path,
+            self._settings.usage_log_level,
+        )
+        self._api_logger, self._api_log_warning = _build_file_logger(
+            "tol.llm.api",
+            self._settings.api_log_path,
+            self._settings.api_log_level,
+        )
         import openai as openai_module
 
         self._openai = openai_module
@@ -57,22 +70,17 @@ class ChatGptClient:
         return cls(settings)
 
     def describe_tol(self, tol_doc: dict[str, Any]) -> LlmResponse:
-        prompt = (
-            "You are a trading assistant. Describe the following TOL document in a "
-            "single concise sentence. Use natural language that references the actions "
-            "and constraints. Avoid jargon. Output plain text only.\n\nTOL:\n"
-            f"{json.dumps(tol_doc, indent=2)}"
+        prompt = _render_prompt(
+            "describe_tol_prompt.j2",
+            tol_doc_json=json.dumps(tol_doc, indent=2),
         )
         response = self._chat(messages=[_system_message(), _user_message(prompt)])
         return response
 
     def generate_tol(self, prompt_text: str) -> LlmDocumentResponse:
-        instructions = (
-            "Convert the user's request into a TOL document. Output JSON only. "
-            "Use the schema: {'version': 1, 'actions': [ ... ]}. Actions are objects "
-            "with a single key such as 'buy', 'sell', or 'target'. "
-            "Prefer percent targets when explicitly requested. "
-            "Include 'using' sources when the user mentions funding sources."
+        instructions = _render_prompt(
+            "generate_tol_prompt.j2",
+            schema_json=_load_tol_schema_text(),
         )
         message = self._chat(
             messages=[
@@ -85,6 +93,10 @@ class ChatGptClient:
         try:
             document = json.loads(raw_content)
         except json.JSONDecodeError as exc:
+            self._log_api_error(
+                "LLM response was not valid JSON.",
+                response_content=message.content,
+            )
             raise RuntimeError(
                 "LLM response was not valid JSON. Adjust the prompt or model."
             ) from exc
@@ -97,7 +109,8 @@ class ChatGptClient:
         )
 
     def _chat(self, messages: list[dict[str, str]]) -> LlmResponse:
-        self._enforce_spend_limit()
+        self._log_api_message(messages)
+        start_time = time.monotonic()
         try:
             response = self._client.responses.create(
                 model=self._settings.model,
@@ -107,37 +120,37 @@ class ChatGptClient:
                 timeout=self._settings.timeout_seconds,
             )
         except self._openai.APIStatusError as exc:
+            self._log_api_error(
+                "ChatGPT API status error.",
+                status_code=exc.status_code,
+                response_content=exc.response.text,
+            )
             raise RuntimeError(
                 _format_api_error(exc.status_code, exc.response.text)
             ) from exc
         except self._openai.APIError as exc:
+            self._log_api_error("ChatGPT API error.", response_content=str(exc))
             raise RuntimeError(f"ChatGPT API error: {exc}") from exc
 
         response_data = response.model_dump()
         content = _extract_response_text(response_data)
         usage = self._parse_usage(response_data)
         warnings: list[str] = []
+        elapsed = time.monotonic() - start_time
+        self._log_api_response(content, elapsed)
+        if not content:
+            self._log_api_error("Empty response content from LLM.")
 
-        if usage and self._settings.usage_log_path:
-            warning = self._record_usage(self._settings.usage_log_path, usage)
+        if usage and self._usage_logger:
+            warning = self._record_usage(usage)
             if warning:
                 warnings.append(warning)
+        if self._usage_log_warning:
+            warnings.append(self._usage_log_warning)
+        if self._api_log_warning:
+            warnings.append(self._api_log_warning)
 
         return LlmResponse(content=content, usage=usage, warnings=warnings)
-
-    def _enforce_spend_limit(self) -> None:
-        if (
-            self._settings.spend_limit_usd is None
-            or self._settings.usage_log_path is None
-            or self._settings.pricing is None
-        ):
-            return
-
-        total_spend = _sum_usage_cost(self._settings.usage_log_path)
-        if total_spend >= self._settings.spend_limit_usd:
-            raise RuntimeError(
-                "Usage spend limit reached. Increase spend_limit_usd in the config."
-            )
 
     def _parse_usage(self, data: dict[str, Any]) -> LlmUsage | None:
         usage_data = data.get("usage")
@@ -146,35 +159,53 @@ class ChatGptClient:
         prompt_tokens = int(usage_data.get("input_tokens", 0))
         completion_tokens = int(usage_data.get("output_tokens", 0))
         total_tokens = int(usage_data.get("total_tokens", 0))
-        estimated_cost = None
-        if self._settings.pricing:
-            estimated_cost = self._settings.pricing.estimate_cost(
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-            )
         return LlmUsage(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
-            estimated_cost=estimated_cost,
         )
 
-    def _record_usage(self, path: Path, usage: LlmUsage) -> str | None:
+    def _record_usage(self, usage: LlmUsage) -> str | None:
         payload = {
             "timestamp": time.time(),
             "model": self._settings.model,
             "prompt_tokens": usage.prompt_tokens,
             "completion_tokens": usage.completion_tokens,
             "total_tokens": usage.total_tokens,
-            "estimated_cost": usage.estimated_cost,
         }
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(payload) + "\n")
+            self._usage_logger.info(json.dumps(payload))
         except OSError as exc:
             return f"Failed to write usage log: {exc}"
         return None
+
+    def _log_api_message(self, messages: list[dict[str, str]]) -> None:
+        if not self._api_logger:
+            return
+        self._api_logger.info(
+            json.dumps({"event": "request", "messages": messages})
+        )
+
+    def _log_api_response(self, content: str, elapsed: float) -> None:
+        if not self._api_logger:
+            return
+        self._api_logger.info(
+            json.dumps(
+                {
+                    "event": "response",
+                    "elapsed_seconds": elapsed,
+                    "content": content,
+                }
+            )
+        )
+
+    def _log_api_error(self, message: str, **context: Any) -> None:
+        if not self._api_logger:
+            return
+        payload = {"event": "error", "message": message}
+        if context:
+            payload.update(context)
+        self._api_logger.error(json.dumps(payload))
 
 
 def _system_message() -> dict[str, str]:
@@ -213,31 +244,6 @@ def _extract_response_text(data: dict[str, Any]) -> str:
     return ""
 
 
-def _sum_usage_cost(path: Path) -> float:
-    if not path.exists():
-        return 0.0
-    total = 0.0
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                if not line.strip():
-                    continue
-                try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                cost = payload.get("estimated_cost")
-                if cost is None:
-                    continue
-                try:
-                    total += float(cost)
-                except (TypeError, ValueError):
-                    continue
-    except OSError:
-        return 0.0
-    return total
-
-
 def _format_api_error(status_code: int, detail: str) -> str:
     message = f"ChatGPT API error: HTTP {status_code}"
     if not detail:
@@ -270,3 +276,53 @@ def _normalize_base_url(base_url: str) -> str:
     if cleaned.endswith("/responses"):
         cleaned = cleaned[: -len("/responses")]
     return cleaned
+
+
+def _render_prompt(template_name: str, **context: Any) -> str:
+    template = _prompt_environment().get_template(template_name)
+    return template.render(**context).strip()
+
+
+@lru_cache
+def _prompt_environment() -> Environment:
+    template_dir = Path(__file__).resolve().parent / "templates"
+    return Environment(
+        loader=FileSystemLoader(template_dir),
+        autoescape=False,
+    )
+
+
+@lru_cache
+def _load_tol_schema_text() -> str:
+    schema_path = Path(__file__).resolve().parents[2] / "TOL_JSON_SCHEMA.json"
+    return schema_path.read_text(encoding="utf-8").strip()
+
+
+def _build_file_logger(
+    name: str, path: Path | None, level_name: str
+) -> tuple[logging.Logger | None, str | None]:
+    if not path:
+        return None, None
+    logger_name = f"{name}.{path}"
+    logger = logging.getLogger(logger_name)
+    if logger.handlers:
+        return logger, None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(path, encoding="utf-8")
+    except OSError as exc:
+        return None, f"Failed to set up log file {path}: {exc}"
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(_parse_log_level(level_name))
+    logger.propagate = False
+    return logger, None
+
+
+def _parse_log_level(level_name: str) -> int:
+    if not isinstance(level_name, str):
+        return logging.INFO
+    upper_name = level_name.upper()
+    level = logging.getLevelName(upper_name)
+    return level if isinstance(level, int) else logging.INFO

@@ -22,8 +22,8 @@ def test_load_converts_all_and_percent(tmp_path: Path) -> None:
 
     tol_doc = load_tol(tol_file)
     actions = tol_doc["actions"]
-    assert actions[0]["buy"]["quantity"] == 1.0
-    assert actions[1]["sell"]["quantity"] == 0.25
+    assert actions[0]["buy"]["quantity"] == "ALL"
+    assert actions[1]["sell"]["quantity"] == "25%"
 
 
 def test_load_converts_string_integer(tmp_path: Path) -> None:
@@ -90,8 +90,42 @@ def test_load_from_text_and_dump_round_trip() -> None:
 }
 """
     tol_doc = load_tol_text(source)
-    assert tol_doc["actions"][0]["sell"]["quantity"] == 0.5
+    assert tol_doc["actions"][0]["sell"]["quantity"] == "50%"
 
     dumped = dump_tol(tol_doc)
     reloaded = load_tol_text(dumped)
-    assert reloaded["actions"][0]["sell"]["quantity"] == 0.5
+    assert reloaded["actions"][0]["sell"]["quantity"] == "50%"
+
+
+def test_load_normalizes_using_sources() -> None:
+    source = """
+{
+  "version": 1,
+  "actions": [
+    {
+      "buy": {
+        "symbol": "TSM",
+        "quantity": "50%",
+        "using": ["proceeds from VOO", "CASH"]
+      }
+    }
+  ]
+}
+"""
+    tol_doc = load_tol_text(source)
+    using = tol_doc["actions"][0]["buy"]["using"]
+
+    assert using == ["sellVOO", "CASH"]
+
+
+def test_load_normalizes_money_quantity() -> None:
+    source = """
+{
+  "version": 1,
+  "actions": [
+    {"buy": {"symbol": "AAPL", "quantity": "$50.00"}}
+  ]
+}
+"""
+    tol_doc = load_tol_text(source)
+    assert tol_doc["actions"][0]["buy"]["quantity"] == "$50"

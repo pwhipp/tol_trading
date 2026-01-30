@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 import os
+
+import yaml
 
 from tol.llm.settings import LlmSettings
 
@@ -17,10 +19,10 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     "timeout_seconds": {"default": 30.0, "parser": float},
     "temperature": {"default": 0.2, "parser": float},
     "max_tokens": {"default": 50000, "parser": int},
-    "usage_log_path": {"default": None, "parser": str},
-    "input_cost_per_1k": {"default": None, "parser": float},
-    "output_cost_per_1k": {"default": None, "parser": float},
-    "spend_limit_usd": {"default": 1000.0, "parser": float},
+    "usage_log_path": {"default": "llm_usage.log", "parser": str},
+    "usage_log_level": {"default": "INFO", "parser": str},
+    "api_log_path": {"default": "llm_api.log", "parser": str},
+    "api_log_level": {"default": "INFO", "parser": str},
 }
 
 
@@ -60,11 +62,6 @@ def write_settings(settings: LlmSettings) -> None:
 
 def dump_settings(settings: LlmSettings, stream) -> None:
     data = settings.to_dict()
-    try:
-        import yaml
-    except ModuleNotFoundError:
-        _write_json_stream(stream, data)
-        return
     yaml.safe_dump(data, stream, sort_keys=False, default_flow_style=False)
 
 
@@ -79,12 +76,7 @@ def set_setting(settings: LlmSettings, key: str, raw_value: str) -> LlmSettings:
     if key not in CONFIG_PARAMS:
         raise KeyError(f"Unknown setting: {key}")
     parser = CONFIG_PARAMS[key]["parser"]
-    if raw_value == "" and key in {
-        "usage_log_path",
-        "input_cost_per_1k",
-        "output_cost_per_1k",
-        "spend_limit_usd",
-    }:
+    if raw_value == "" and key in {"usage_log_path", "api_log_path"}:
         value: Any = None
     else:
         value = parser(raw_value)
@@ -94,39 +86,10 @@ def set_setting(settings: LlmSettings, key: str, raw_value: str) -> LlmSettings:
 
 
 def _read_yaml(path: Path) -> dict[str, Any]:
-    try:
-        import yaml
-    except ModuleNotFoundError as exc:
-        return _read_json(path)
     with path.open("r", encoding="utf-8") as handle:
         return yaml.safe_load(handle) or {}
 
 
 def _write_yaml(path: Path, data: dict[str, Any]) -> None:
-    try:
-        import yaml
-    except ModuleNotFoundError as exc:
-        _write_json(path, data)
-        return
     with path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(data, handle, sort_keys=False, default_flow_style=False)
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    import json
-
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _write_json(path: Path, data: dict[str, Any]) -> None:
-    import json
-
-    with path.open("w", encoding="utf-8") as handle:
-        json.dump(data, handle, indent=2)
-
-
-def _write_json_stream(stream, data: dict[str, Any]) -> None:
-    import json
-
-    stream.write(json.dumps(data, indent=2))
