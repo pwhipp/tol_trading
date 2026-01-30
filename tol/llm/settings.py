@@ -32,7 +32,7 @@ class LlmSettings:
             ),
             model=str(data.get("model", "gpt-4o-mini")),
             timeout_seconds=float(data.get("timeout_seconds", 30.0)),
-            temperature=float(data.get("temperature", 0.2)),
+            temperature=float(data.get("temperature", 0.0)),
             max_tokens=int(data.get("max_tokens", 50000)),
             usage_log_path=Path(usage_log_path) if usage_log_path else None,
             usage_log_level=str(data.get("usage_log_level", "INFO")),

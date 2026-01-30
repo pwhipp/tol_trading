@@ -17,7 +17,7 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     },
     "model": {"default": "gpt-4o-mini", "parser": str},
     "timeout_seconds": {"default": 30.0, "parser": float},
-    "temperature": {"default": 0.2, "parser": float},
+    "temperature": {"default": 0.0, "parser": float},
     "max_tokens": {"default": 50000, "parser": int},
     "usage_log_path": {"default": "llm_usage.log", "parser": str},
     "usage_log_level": {"default": "INFO", "parser": str},
