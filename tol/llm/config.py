@@ -16,6 +16,7 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
         "parser": str,
     },
     "model": {"default": "gpt-4o-mini", "parser": str},
+    "mode": {"default": "paper", "parser": str},
     "timeout_seconds": {"default": 30.0, "parser": float},
     "temperature": {"default": 0.0, "parser": float},
     "max_tokens": {"default": 50000, "parser": int},
@@ -75,6 +76,11 @@ def get_setting(settings: LlmSettings, key: str) -> Any:
 def set_setting(settings: LlmSettings, key: str, raw_value: str) -> LlmSettings:
     if key not in CONFIG_PARAMS:
         raise KeyError(f"Unknown setting: {key}")
+    if key == "mode":
+        normalized = raw_value.strip().lower()
+        if normalized not in {"paper", "live"}:
+            raise ValueError("mode must be 'paper' or 'live'")
+        raw_value = normalized
     parser = CONFIG_PARAMS[key]["parser"]
     if raw_value == "" and key in {"usage_log_path", "api_log_path"}:
         value: Any = None

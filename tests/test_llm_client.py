@@ -20,16 +20,19 @@ def test_format_api_error_with_quota_message() -> None:
 def test_generate_context_prompt_includes_schema_and_spec() -> None:
     schema = '{"type": "object"}'
     spec = "# Spec"
+    mode = "paper"
     prompt = _render_prompt(
         "generate_tol_context.j2",
         spec_text=spec,
         schema_json=schema,
+        mode=mode,
     )
 
     assert schema in prompt
     assert spec in prompt
     assert "TOL SPECIFICATION (normative):" in prompt
     assert "JSON SCHEMA (authoritative):" in prompt
+    assert mode in prompt
 
 
 def test_generate_user_prompt_includes_request() -> None:

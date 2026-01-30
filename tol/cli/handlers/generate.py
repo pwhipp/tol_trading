@@ -13,7 +13,7 @@ def handle_generate(args) -> None:
     client = ChatGptClient.from_config(model_override=args.llm_model)
 
     try:
-        response = client.generate_tol(prompt_text)
+        response = client.generate_tol(prompt_text, mode_override=args.mode)
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)

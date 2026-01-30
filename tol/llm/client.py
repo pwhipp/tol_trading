@@ -79,8 +79,13 @@ class ChatGptClient:
         )
         return response
 
-    def generate_tol(self, prompt_text: str) -> LlmDocumentResponse:
-        context_prompt = _generate_context_prompt()
+    def generate_tol(
+        self,
+        prompt_text: str,
+        mode_override: str | None = None,
+    ) -> LlmDocumentResponse:
+        mode = mode_override or self._settings.mode
+        context_prompt = _generate_context_prompt(mode)
         user_prompt = _generate_user_prompt(prompt_text)
         message = self._chat(
             messages=[
@@ -326,11 +331,12 @@ def _load_tol_spec_text() -> str:
 
 
 @lru_cache
-def _generate_context_prompt() -> str:
+def _generate_context_prompt(mode: str) -> str:
     return _render_prompt(
         "generate_tol_context.j2",
         spec_text=_load_tol_spec_text(),
         schema_json=_load_tol_schema_text(),
+        mode=mode,
     )
 
 
