@@ -95,14 +95,18 @@ def _normalize_quantity(value: Any) -> Any:
     if isinstance(value, float):
         if value > 1.0:
             raise ValueError("Float quantity must be <= 1.0 for percentage values.")
-        return value
+        if value <= 0:
+            raise ValueError("Float quantity must be greater than 0.")
+        if value == 1.0:
+            return "ALL"
+        return _format_percent(value * 100)
     if isinstance(value, str):
         raw = value.strip()
         if not raw:
             raise ValueError("Quantity string cannot be empty.")
         upper = raw.upper()
         if upper == "ALL":
-            return 1.0
+            return "ALL"
         if raw.startswith("$"):
             normalized_money = _normalize_money_string(raw)
             if normalized_money is not None:
@@ -111,10 +115,14 @@ def _normalize_quantity(value: Any) -> Any:
             number = upper[:-1].strip()
             if not number:
                 raise ValueError("Percent quantity is missing a value.")
-            percent = float(number) / 100.0
-            if percent > 1.0:
+            percent_value = float(number)
+            if percent_value > 100:
                 raise ValueError("Percent quantity must be <= 100%.")
-            return percent
+            if percent_value <= 0:
+                raise ValueError("Percent quantity must be greater than 0%.")
+            if percent_value == 100:
+                return "ALL"
+            return _format_percent(percent_value)
         try:
             return int(upper)
         except ValueError as exc:
@@ -175,6 +183,11 @@ def _normalize_money_string(value: str) -> str | None:
         raise ValueError("Monetary quantity must be greater than 0.")
     normalized = f"{amount:.2f}".rstrip("0").rstrip(".")
     return f"${normalized}"
+
+
+def _format_percent(value: float) -> str:
+    formatted = f"{value:.4f}".rstrip("0").rstrip(".")
+    return f"{formatted}%"
 
 
 def _read_tol_file(path: Path) -> dict[str, Any]:
