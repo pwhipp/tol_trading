@@ -1,4 +1,8 @@
-from tol.llm.client import _format_api_error, _render_prompt
+from tol.llm.client import (
+    _format_api_error,
+    _generate_system_message,
+    _render_prompt,
+)
 
 
 def test_format_api_error_with_quota_message() -> None:
@@ -13,13 +17,39 @@ def test_format_api_error_with_quota_message() -> None:
     assert "independent of spend_limit_usd" not in message
 
 
-def test_generate_prompt_includes_schema_and_spec_hint() -> None:
+def test_generate_context_prompt_includes_schema_and_spec() -> None:
     schema = '{"type": "object"}'
-    prompt = _render_prompt("generate_tol_prompt.j2", schema_json=schema)
+    spec = "# Spec"
+    mode = "paper"
+    prompt = _render_prompt(
+        "generate_tol_context.j2",
+        spec_text=spec,
+        schema_json=schema,
+        mode=mode,
+    )
 
     assert schema in prompt
-    assert "TOL_SPEC.md" in prompt
-    assert "\"error\"" in prompt
-    assert "sellTSLA" in prompt
-    assert "explicitly requested" in prompt
-    assert "assume CASH" in prompt
+    assert spec in prompt
+    assert "TOL SPECIFICATION (normative):" in prompt
+    assert "JSON SCHEMA (authoritative):" in prompt
+    assert mode in prompt
+
+
+def test_generate_user_prompt_includes_request() -> None:
+    request = "Buy 10 shares of TSLA."
+    prompt = _render_prompt(
+        "generate_tol_user.j2",
+        user_request=request,
+    )
+
+    assert request in prompt
+    assert "Convert the follwing request into a TOL document:" in prompt
+
+
+def test_generate_system_message_has_rules() -> None:
+    message = _generate_system_message()
+
+    assert message["role"] == "system"
+    assert "Output JSON only." in message["content"]
+    assert '{"error": "<reason>"}' in message["content"]
+    assert "do not use TARGET for proceeds allocation" in message["content"]

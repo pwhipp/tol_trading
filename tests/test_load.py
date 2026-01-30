@@ -77,7 +77,7 @@ def test_load_parses_target_percent_string(tmp_path: Path) -> None:
     )
 
     tol_doc = load_tol(tol_file)
-    assert tol_doc["actions"][0]["target"]["percent"] == 25.0
+    assert tol_doc["actions"][0]["target"]["percent"] == "25%"
 
 
 def test_load_from_text_and_dump_round_trip() -> None:

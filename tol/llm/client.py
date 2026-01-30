@@ -74,19 +74,24 @@ class ChatGptClient:
             "describe_tol_prompt.j2",
             tol_doc_json=json.dumps(tol_doc, indent=2),
         )
-        response = self._chat(messages=[_system_message(), _user_message(prompt)])
+        response = self._chat(
+            messages=[_describe_system_message(), _user_message(prompt)]
+        )
         return response
 
-    def generate_tol(self, prompt_text: str) -> LlmDocumentResponse:
-        instructions = _render_prompt(
-            "generate_tol_prompt.j2",
-            schema_json=_load_tol_schema_text(),
-        )
+    def generate_tol(
+        self,
+        prompt_text: str,
+        mode_override: str | None = None,
+    ) -> LlmDocumentResponse:
+        mode = mode_override or self._settings.mode
+        context_prompt = _generate_context_prompt(mode)
+        user_prompt = _generate_user_prompt(prompt_text)
         message = self._chat(
             messages=[
-                _system_message(),
-                _user_message(instructions),
-                _user_message(prompt_text),
+                _generate_system_message(),
+                _context_message(context_prompt),
+                _user_message(user_prompt),
             ]
         )
         raw_content = _strip_json_fence(message.content)
@@ -208,8 +213,36 @@ class ChatGptClient:
         self._api_logger.error(json.dumps(payload))
 
 
-def _system_message() -> dict[str, str]:
+def _describe_system_message() -> dict[str, str]:
     return {"role": "system", "content": "You are a helpful trading assistant."}
+
+
+def _generate_system_message() -> dict[str, str]:
+    return {
+        "role": "system",
+        "content": (
+            "You are a compiler that converts natural language trading "
+            "instructions into a TOL JSON document.\n\n"
+            "Rules:\n"
+            "- Output JSON only.\n"
+            "- The response MUST be a single JSON object matching the provided "
+            "schema.\n"
+            "- If a valid document cannot be produced, output:\n"
+            '  {"error": "<reason>"}\n'
+            "- Do NOT include explanations, markdown, or extra text."
+            "\n- Use BUY actions with quantity percentages when allocating sell "
+            "proceeds across symbols; do not use TARGET for proceeds "
+            "allocation.\n"
+            "- Use TARGET only when the user specifies desired portfolio "
+            "percent ownership.\n"
+            "- TARGET percent values must be strings with a trailing '%' "
+            "symbol (e.g., \"66%\")."
+        ),
+    }
+
+
+def _context_message(content: str) -> dict[str, str]:
+    return {"role": "developer", "content": content}
 
 
 def _user_message(content: str) -> dict[str, str]:
@@ -296,6 +329,29 @@ def _prompt_environment() -> Environment:
 def _load_tol_schema_text() -> str:
     schema_path = Path(__file__).resolve().parents[2] / "TOL_JSON_SCHEMA.json"
     return schema_path.read_text(encoding="utf-8").strip()
+
+
+@lru_cache
+def _load_tol_spec_text() -> str:
+    spec_path = Path(__file__).resolve().parents[2] / "TOL_SPEC.md"
+    return spec_path.read_text(encoding="utf-8").strip()
+
+
+@lru_cache
+def _generate_context_prompt(mode: str) -> str:
+    return _render_prompt(
+        "generate_tol_context.j2",
+        spec_text=_load_tol_spec_text(),
+        schema_json=_load_tol_schema_text(),
+        mode=mode,
+    )
+
+
+def _generate_user_prompt(user_request: str) -> str:
+    return _render_prompt(
+        "generate_tol_user.j2",
+        user_request=user_request.strip(),
+    )
 
 
 def _build_file_logger(

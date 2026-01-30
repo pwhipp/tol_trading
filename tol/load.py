@@ -138,9 +138,12 @@ def _normalize_percent(value: Any) -> Any:
     if isinstance(value, bool):
         raise ValueError("Percent must be numeric or string, not boolean.")
     if isinstance(value, (int, float)):
-        if float(value) > 100:
+        percent = float(value)
+        if percent > 100:
             raise ValueError("Percent must be <= 100.")
-        return float(value)
+        if percent <= 0:
+            raise ValueError("Percent must be greater than 0.")
+        return _format_percent(percent)
     if isinstance(value, str):
         raw = value.strip()
         if not raw:
@@ -153,12 +156,16 @@ def _normalize_percent(value: Any) -> Any:
             percent = float(number)
             if percent > 100:
                 raise ValueError("Percent must be <= 100.")
-            return percent
+            if percent <= 0:
+                raise ValueError("Percent must be greater than 0.")
+            return _format_percent(percent)
         try:
             percent = float(upper)
             if percent > 100:
                 raise ValueError("Percent must be <= 100.")
-            return percent
+            if percent <= 0:
+                raise ValueError("Percent must be greater than 0.")
+            return _format_percent(percent)
         except ValueError as exc:
             raise ValueError(
                 f"Percent string must be numeric or percent: {value}"

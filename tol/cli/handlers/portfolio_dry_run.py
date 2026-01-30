@@ -422,7 +422,10 @@ def _evaluate_target(
         evaluation.errors.append("Target action missing percent.")
         return
 
-    percent = _coerce_decimal(action.percent) / Decimal("100")
+    percent_value = action.percent
+    if isinstance(percent_value, str) and percent_value.endswith("%"):
+        percent_value = percent_value[:-1]
+    percent = _coerce_decimal(percent_value) / Decimal("100")
     total_value = Decimal("0")
     missing_sources: list[str] = []
     invalid_sources: list[str] = []
