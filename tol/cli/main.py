@@ -5,6 +5,7 @@ from tol.cli.handlers.config import handle_config
 from tol.cli.handlers.describe import handle_describe
 from tol.cli.handlers.generate import handle_generate
 from tol.cli.handlers.run import handle_run
+from tol.cli.handlers.test import handle_test
 
 OPENAI_LLM_MODELS = (
     "gpt-5",
@@ -93,6 +94,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     generate_parser.add_argument(
+        "--echo",
+        action="store_true",
+        help=(
+            "Echo the generated output to stderr, useful when piping stdout."
+        ),
+    )
+
+    generate_parser.add_argument(
         "--llm-model",
         dest="llm_model",
         choices=OPENAI_LLM_MODELS,
@@ -120,6 +129,16 @@ def build_parser() -> argparse.ArgumentParser:
     set_parser.add_argument("key", help="Setting name to update")
     set_parser.add_argument("value", help="Setting value")
 
+    test_parser = subparsers.add_parser(
+        "test",
+        help="Validate a TOL document from stdin",
+    )
+    test_parser.add_argument(
+        "--echo",
+        action="store_true",
+        help="Echo the validated output to stderr, useful when piping stdout.",
+    )
+
     return parser
 
 
@@ -135,6 +154,8 @@ def main() -> None:
         handle_describe(args)
     elif args.command == "generate":
         handle_generate(args)
+    elif args.command == "test":
+        handle_test(args)
     elif args.command == "config":
         handle_config(args)
     else:

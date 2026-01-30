@@ -21,4 +21,7 @@ def handle_generate(args) -> None:
     for warning in response.warnings:
         print(f"WARNING: {warning}", file=sys.stderr)
 
-    print(dump_tol(response.document))
+    output = dump_tol(response.document)
+    print(output)
+    if args.echo:
+        print(output, file=sys.stderr)
