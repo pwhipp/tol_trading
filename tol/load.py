@@ -103,6 +103,10 @@ def _normalize_quantity(value: Any) -> Any:
         upper = raw.upper()
         if upper == "ALL":
             return 1.0
+        if raw.startswith("$"):
+            normalized_money = _normalize_money_string(raw)
+            if normalized_money is not None:
+                return normalized_money
         if upper.endswith("%"):
             number = upper[:-1].strip()
             if not number:
@@ -152,6 +156,25 @@ def _normalize_percent(value: Any) -> Any:
                 f"Percent string must be numeric or percent: {value}"
             ) from exc
     return value
+
+
+def _normalize_money_string(value: str) -> str | None:
+    stripped = value.strip()
+    if not stripped.startswith("$"):
+        return None
+    amount_text = stripped[1:].strip()
+    if not amount_text:
+        raise ValueError("Monetary quantity is missing a value.")
+    try:
+        amount = float(amount_text.replace(",", ""))
+    except ValueError as exc:
+        raise ValueError(
+            f"Monetary quantity must be numeric: {value}"
+        ) from exc
+    if amount <= 0:
+        raise ValueError("Monetary quantity must be greater than 0.")
+    normalized = f"{amount:.2f}".rstrip("0").rstrip(".")
+    return f"${normalized}"
 
 
 def _read_tol_file(path: Path) -> dict[str, Any]:

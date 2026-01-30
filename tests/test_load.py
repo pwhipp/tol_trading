@@ -116,3 +116,16 @@ def test_load_normalizes_using_sources() -> None:
     using = tol_doc["actions"][0]["buy"]["using"]
 
     assert using == ["sellVOO", "CASH"]
+
+
+def test_load_normalizes_money_quantity() -> None:
+    source = """
+{
+  "version": 1,
+  "actions": [
+    {"buy": {"symbol": "AAPL", "quantity": "$50.00"}}
+  ]
+}
+"""
+    tol_doc = load_tol_text(source)
+    assert tol_doc["actions"][0]["buy"]["quantity"] == "$50"
