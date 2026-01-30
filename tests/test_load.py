@@ -95,3 +95,24 @@ def test_load_from_text_and_dump_round_trip() -> None:
     dumped = dump_tol(tol_doc)
     reloaded = load_tol_text(dumped)
     assert reloaded["actions"][0]["sell"]["quantity"] == 0.5
+
+
+def test_load_normalizes_using_sources() -> None:
+    source = """
+{
+  "version": 1,
+  "actions": [
+    {
+      "buy": {
+        "symbol": "TSM",
+        "quantity": "50%",
+        "using": ["proceeds from VOO", "CASH"]
+      }
+    }
+  ]
+}
+"""
+    tol_doc = load_tol_text(source)
+    using = tol_doc["actions"][0]["buy"]["using"]
+
+    assert using == ["sellVOO", "CASH"]

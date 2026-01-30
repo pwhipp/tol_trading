@@ -56,8 +56,33 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
             body["quantity"] = _normalize_quantity(body["quantity"])
         if "percent" in body:
             body["percent"] = _normalize_percent(body["percent"])
+    if "using" in body:
+        body = dict(body)
+        body["using"] = _normalize_using(body["using"])
 
     return {action_type: body}
+
+
+def _normalize_using(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_normalize_using_source(item) for item in value]
+    if isinstance(value, str):
+        return _normalize_using_source(value)
+    return value
+
+
+def _normalize_using_source(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    normalized = value.strip()
+    lowered = normalized.lower()
+    prefixes = ("proceeds from ", "proceeds of ")
+    for prefix in prefixes:
+        if lowered.startswith(prefix):
+            symbol = normalized[len(prefix):].strip().upper()
+            if symbol:
+                return f"sell{symbol}"
+    return normalized
 
 
 def _normalize_quantity(value: Any) -> Any:

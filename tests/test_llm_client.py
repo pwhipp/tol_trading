@@ -20,3 +20,4 @@ def test_generate_prompt_includes_schema_and_spec_hint() -> None:
     assert schema in prompt
     assert "TOL_SPEC.md" in prompt
     assert "\"error\"" in prompt
+    assert "sellTSLA" in prompt
