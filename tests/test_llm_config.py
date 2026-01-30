@@ -13,8 +13,10 @@ def test_load_settings_creates_default_file(tmp_path: Path, monkeypatch: pytest.
     settings = llm_config.load_settings()
 
     assert config_path.exists()
-    assert settings.model == "gpt-4o-mini"
+    assert settings.model == "gpt-4.1"
     assert settings.base_url == "https://api.openai.com/v1"
+    assert settings.mode == "paper"
+    assert settings.temperature == 0.0
     assert settings.usage_log_path == Path("llm_usage.log")
     assert settings.usage_log_level == "INFO"
     assert settings.api_log_path == Path("llm_api.log")
@@ -32,3 +34,16 @@ def test_set_and_get_setting_round_trip(
 
     reloaded = llm_config.load_settings()
     assert llm_config.get_setting(reloaded, "model") == "gpt-4o"
+
+
+def test_set_mode_setting_normalizes_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    settings = llm_config.load_settings()
+
+    updated = llm_config.set_setting(settings, "mode", "LIVE")
+    llm_config.write_settings(updated)
+
+    reloaded = llm_config.load_settings()
+    assert reloaded.mode == "live"

@@ -10,6 +10,7 @@ class LlmSettings:
     api_key: str
     base_url: str
     model: str
+    mode: str
     timeout_seconds: float
     temperature: float
     max_tokens: int
@@ -22,6 +23,9 @@ class LlmSettings:
     def from_dict(cls, data: dict[str, Any]) -> "LlmSettings":
         usage_log_path = data.get("usage_log_path")
         api_log_path = data.get("api_log_path")
+        mode = str(data.get("mode", "paper")).lower()
+        if mode not in {"paper", "live"}:
+            raise ValueError("mode must be 'paper' or 'live'")
         return cls(
             api_key=str(data.get("api_key", "")),
             base_url=str(
@@ -30,9 +34,10 @@ class LlmSettings:
                     "https://api.openai.com/v1",
                 )
             ),
-            model=str(data.get("model", "gpt-4o-mini")),
+            model=str(data.get("model", "gpt-4.1")),
+            mode=mode,
             timeout_seconds=float(data.get("timeout_seconds", 30.0)),
-            temperature=float(data.get("temperature", 0.2)),
+            temperature=float(data.get("temperature", 0.0)),
             max_tokens=int(data.get("max_tokens", 50000)),
             usage_log_path=Path(usage_log_path) if usage_log_path else None,
             usage_log_level=str(data.get("usage_log_level", "INFO")),
@@ -45,6 +50,7 @@ class LlmSettings:
             "api_key": self.api_key,
             "base_url": self.base_url,
             "model": self.model,
+            "mode": self.mode,
             "timeout_seconds": self.timeout_seconds,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,

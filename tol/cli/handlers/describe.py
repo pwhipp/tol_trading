@@ -16,7 +16,7 @@ def handle_describe(args) -> None:
         print(f"ERROR: Failed to parse TOL document: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    client = ChatGptClient.from_config(model_override=args.model)
+    client = ChatGptClient.from_config(model_override=args.llm_model)
 
     try:
         response = client.describe_tol(tol_doc)
