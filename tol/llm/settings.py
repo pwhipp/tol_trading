@@ -34,7 +34,7 @@ class LlmSettings:
                     "https://api.openai.com/v1",
                 )
             ),
-            model=str(data.get("model", "gpt-4o-mini")),
+            model=str(data.get("model", "gpt-4.1")),
             mode=mode,
             timeout_seconds=float(data.get("timeout_seconds", 30.0)),
             temperature=float(data.get("temperature", 0.0)),

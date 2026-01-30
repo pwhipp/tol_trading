@@ -15,7 +15,7 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
         "default": "https://api.openai.com/v1",
         "parser": str,
     },
-    "model": {"default": "gpt-4o-mini", "parser": str},
+    "model": {"default": "gpt-4.1", "parser": str},
     "mode": {"default": "paper", "parser": str},
     "timeout_seconds": {"default": 30.0, "parser": float},
     "temperature": {"default": 0.0, "parser": float},

@@ -13,7 +13,7 @@ def test_load_settings_creates_default_file(tmp_path: Path, monkeypatch: pytest.
     settings = llm_config.load_settings()
 
     assert config_path.exists()
-    assert settings.model == "gpt-4o-mini"
+    assert settings.model == "gpt-4.1"
     assert settings.base_url == "https://api.openai.com/v1"
     assert settings.mode == "paper"
     assert settings.temperature == 0.0
