@@ -22,3 +22,4 @@ def test_generate_prompt_includes_schema_and_spec_hint() -> None:
     assert "\"error\"" in prompt
     assert "sellTSLA" in prompt
     assert "explicitly requested" in prompt
+    assert "assume CASH" in prompt
