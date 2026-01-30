@@ -6,17 +6,6 @@ from typing import Any
 
 
 @dataclass(frozen=True)
-class LlmPricing:
-    input_cost_per_1k: float
-    output_cost_per_1k: float
-
-    def estimate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
-        input_cost = (prompt_tokens / 1000.0) * self.input_cost_per_1k
-        output_cost = (completion_tokens / 1000.0) * self.output_cost_per_1k
-        return input_cost + output_cost
-
-
-@dataclass(frozen=True)
 class LlmSettings:
     api_key: str
     base_url: str
@@ -25,21 +14,14 @@ class LlmSettings:
     temperature: float
     max_tokens: int
     usage_log_path: Path | None
-    pricing: LlmPricing | None
-    spend_limit_usd: float | None
+    usage_log_level: str
+    api_log_path: Path | None
+    api_log_level: str
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LlmSettings":
-        pricing = None
-        input_cost = data.get("input_cost_per_1k")
-        output_cost = data.get("output_cost_per_1k")
-        if input_cost is not None and output_cost is not None:
-            pricing = LlmPricing(
-                input_cost_per_1k=float(input_cost),
-                output_cost_per_1k=float(output_cost),
-            )
-
         usage_log_path = data.get("usage_log_path")
+        api_log_path = data.get("api_log_path")
         return cls(
             api_key=str(data.get("api_key", "")),
             base_url=str(
@@ -53,8 +35,9 @@ class LlmSettings:
             temperature=float(data.get("temperature", 0.2)),
             max_tokens=int(data.get("max_tokens", 50000)),
             usage_log_path=Path(usage_log_path) if usage_log_path else None,
-            pricing=pricing,
-            spend_limit_usd=_optional_float(data.get("spend_limit_usd")),
+            usage_log_level=str(data.get("usage_log_level", "INFO")),
+            api_log_path=Path(api_log_path) if api_log_path else None,
+            api_log_level=str(data.get("api_log_level", "INFO")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,20 +51,11 @@ class LlmSettings:
             "usage_log_path": str(self.usage_log_path)
             if self.usage_log_path
             else None,
-            "input_cost_per_1k": None,
-            "output_cost_per_1k": None,
-            "spend_limit_usd": self.spend_limit_usd,
+            "usage_log_level": self.usage_log_level,
+            "api_log_path": str(self.api_log_path) if self.api_log_path else None,
+            "api_log_level": self.api_log_level,
         }
-        if self.pricing:
-            data["input_cost_per_1k"] = self.pricing.input_cost_per_1k
-            data["output_cost_per_1k"] = self.pricing.output_cost_per_1k
         return data
 
 
-def _optional_float(value: Any) -> float | None:
-    if value is None:
-        return None
-    return float(value)
-
-
-__all__ = ["LlmPricing", "LlmSettings"]
+__all__ = ["LlmSettings"]
