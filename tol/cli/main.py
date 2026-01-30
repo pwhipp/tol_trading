@@ -101,15 +101,15 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    if args.command == "run":
-        handle_run(args)
-    elif args.command == "check":
-        handle_check(args)
-    elif args.command == "describe":
-        handle_describe(args)
-    elif args.command == "generate":
-        handle_generate(args)
-    elif args.command == "config":
-        handle_config(args)
-    else:
-        parser.error("Unknown command")
+    command_map = {
+        "run": handle_run,
+        "check": handle_check,
+        "describe": handle_describe,
+        "generate": handle_generate,
+        "config": handle_config
+    }
+
+    def handle_error(args):
+        parser.error(f"Unknown command - {args.command}")
+
+    command_map.get(args.command, handle_error)(args)
