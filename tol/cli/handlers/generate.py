@@ -10,7 +10,7 @@ def handle_generate(args) -> None:
         print("ERROR: No natural language request provided on stdin.", file=sys.stderr)
         sys.exit(1)
 
-    client = ChatGptClient.from_config(model_override=args.model)
+    client = ChatGptClient.from_config(model_override=args.llm_model)
 
     try:
         response = client.generate_tol(prompt_text)

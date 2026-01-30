@@ -6,6 +6,13 @@ from tol.cli.handlers.describe import handle_describe
 from tol.cli.handlers.generate import handle_generate
 from tol.cli.handlers.run import handle_run
 
+OPENAI_LLM_MODELS = (
+    "gpt-4o-mini",
+    "gpt-4o",
+    "gpt-4.1-mini",
+    "gpt-4.1",
+)
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -62,8 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     describe_parser.add_argument(
-        "--model",
-        help="Override the LLM model for describing the document",
+        "--llm-model",
+        dest="llm_model",
+        choices=OPENAI_LLM_MODELS,
+        help=(
+            "Override the LLM model for describing the document. "
+            "Defaults to the configured model."
+        ),
     )
 
     generate_parser = subparsers.add_parser(
@@ -72,8 +84,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     generate_parser.add_argument(
-        "--model",
-        help="Override the LLM model for generating the document",
+        "--llm-model",
+        dest="llm_model",
+        choices=OPENAI_LLM_MODELS,
+        help=(
+            "Override the LLM model for generating the document. "
+            "Defaults to the configured model."
+        ),
     )
 
     config_parser = subparsers.add_parser(
