@@ -2,7 +2,8 @@ from decimal import Decimal
 import unittest
 
 from tol.cli.handlers.portfolio_dry_run import (
-    _derive_reservations,
+    apply_pending_trades,
+    build_portfolio_report,
     build_snapshot,
     evaluate_actions,
     normalize_quantity,
@@ -173,42 +174,8 @@ class TestPortfolioDryRun(unittest.TestCase):
         )
         self.assertFalse(evaluations[0].errors)
         self.assertTrue(
-            any("Pending trade overlap" in msg for msg in evaluations[0].warnings)
+            any("Order overlap" in msg for msg in evaluations[0].warnings)
         )
-
-    def test_pending_buy_reserves_cash(self) -> None:
-        pending = normalize_pending_trades(
-            [
-                {
-                    "symbol": "VOO",
-                    "action_type": "buy",
-                    "quantity": Decimal("2"),
-                    "status": "Submitted",
-                    "price": Decimal("300"),
-                    "currency": "USD",
-                    "order_type": "LMT",
-                }
-            ]
-        )
-        reservations, warnings = _derive_reservations(pending)
-        self.assertFalse(warnings)
-        self.assertEqual(reservations.cash_by_currency["USD"], Decimal("600"))
-
-    def test_pending_sell_reserves_shares(self) -> None:
-        pending = normalize_pending_trades(
-            [
-                {
-                    "symbol": "TSLA",
-                    "action_type": "sell",
-                    "quantity": Decimal("10"),
-                    "status": "Submitted",
-                    "order_type": "LMT",
-                }
-            ]
-        )
-        reservations, warnings = _derive_reservations(pending)
-        self.assertFalse(warnings)
-        self.assertEqual(reservations.shares_by_symbol["TSLA"], Decimal("10"))
 
     def test_reserved_cash_blocks_buy(self) -> None:
         tol_doc = {
@@ -247,10 +214,13 @@ class TestPortfolioDryRun(unittest.TestCase):
         )
         self.assertTrue(evaluations[0].errors)
         self.assertTrue(
-            any("Reserved by pending buys" in msg for msg in evaluations[0].errors)
+            any(
+                "Insufficient value to satisfy buy quantity." in msg
+                for msg in evaluations[0].errors
+            )
         )
 
-    def test_target_warns_on_pending_sell(self) -> None:
+    def test_target_uses_amended_snapshot(self) -> None:
         tol_doc = {
             "actions": [
                 {
@@ -297,8 +267,104 @@ class TestPortfolioDryRun(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "Pending sells reserve shares for target symbol" in msg
-                for msg in evaluations[0].warnings
+                "Implied buy" in msg for msg in evaluations[0].messages
+            )
+        )
+
+    def test_apply_pending_trades_amends_snapshot(self) -> None:
+        snapshot = build_snapshot(
+            {"USD": Decimal("1000")},
+            [
+                {
+                    "symbol": "AAPL",
+                    "quantity": Decimal("5"),
+                    "market_value": Decimal("500"),
+                    "currency": "USD",
+                }
+            ],
+        )
+        pending = normalize_pending_trades(
+            [
+                {
+                    "symbol": "AAPL",
+                    "action_type": "buy",
+                    "quantity": Decimal("2"),
+                    "status": "Submitted",
+                    "price": Decimal("110"),
+                    "currency": "USD",
+                },
+                {
+                    "symbol": "AAPL",
+                    "action_type": "sell",
+                    "quantity": Decimal("1"),
+                    "status": "Submitted",
+                    "price": Decimal("105"),
+                    "currency": "USD",
+                },
+                {
+                    "symbol": "MSFT",
+                    "action_type": "buy",
+                    "quantity": Decimal("1"),
+                    "status": "Submitted",
+                    "price": Decimal("50"),
+                    "currency": "USD",
+                },
+            ]
+        )
+
+        amended_snapshot, warnings = apply_pending_trades(snapshot, pending)
+        self.assertFalse(warnings)
+        self.assertEqual(amended_snapshot.cash_by_currency["USD"], Decimal("835"))
+        self.assertEqual(
+            amended_snapshot.positions_by_symbol["AAPL"].quantity, Decimal("6")
+        )
+        self.assertEqual(
+            amended_snapshot.positions_by_symbol["AAPL"].market_value, Decimal("615")
+        )
+        self.assertEqual(
+            amended_snapshot.positions_by_symbol["MSFT"].quantity, Decimal("1")
+        )
+
+    def test_build_portfolio_report_includes_amended_values(self) -> None:
+        snapshot = build_snapshot(
+            {"USD": Decimal("1000")},
+            [
+                {
+                    "symbol": "AAPL",
+                    "quantity": Decimal("5"),
+                    "market_value": Decimal("500"),
+                    "currency": "USD",
+                }
+            ],
+        )
+        pending = normalize_pending_trades(
+            [
+                {
+                    "symbol": "AAPL",
+                    "action_type": "buy",
+                    "quantity": Decimal("2"),
+                    "status": "Submitted",
+                    "price": Decimal("100"),
+                    "currency": "USD",
+                }
+            ]
+        )
+        amended_snapshot, _ = apply_pending_trades(snapshot, pending)
+        report = build_portfolio_report(
+            snapshot,
+            amended_snapshot,
+            pending,
+            [],
+        )
+        self.assertIn("Orders:", report)
+        self.assertTrue(
+            any("USD: 1,000.00 [800.00]" in line for line in report)
+        )
+        self.assertTrue(
+            any(
+                "AAPL: 5 shares (≈ 500.00 USD) [7 shares (≈ 700.00 USD)]"
+                in line
+                for line in report
             )
         )
 
