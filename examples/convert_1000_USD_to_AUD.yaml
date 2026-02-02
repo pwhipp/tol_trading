@@ -1,0 +1,3 @@
+convert:
+  amount: $1,000 (USD)
+  to: AUD
