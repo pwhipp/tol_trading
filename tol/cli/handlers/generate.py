@@ -1,6 +1,6 @@
 import sys
 
-from tol.load import dump_tol
+from tol.load import check_tol_syntax_and_static_semantics, dump_tol
 from tol.llm.client import ChatGptClient
 
 
@@ -21,6 +21,7 @@ def handle_generate(args) -> None:
     for warning in response.warnings:
         print(f"WARNING: {warning}", file=sys.stderr)
 
+    check_tol_syntax_and_static_semantics(response.document)
     output = dump_tol(response.document)
     print(output)
     if args.echo:

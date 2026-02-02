@@ -35,13 +35,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     run_parser.add_argument(
-        "--mode",
-        choices=["paper", "live"],
-        required=True,
-        help="Execution mode (paper or live)",
-    )
-
-    run_parser.add_argument(
         "--dry-run",
         nargs="?",
         const="portfolio",
