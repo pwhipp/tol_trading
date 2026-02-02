@@ -1,6 +1,7 @@
 import sys
 
 from decimal import Decimal, InvalidOperation
+from typing import Any
 
 
 def handle_run(args) -> None:
@@ -8,7 +9,6 @@ def handle_run(args) -> None:
     from tol.parser.planner import plan_actions
     from tol.load import load_tol_text
 
-    mode = args.mode
     dry_run = args.dry_run
     tol_text = sys.stdin.read()
 
@@ -17,6 +17,13 @@ def handle_run(args) -> None:
 
     if not tol_text.strip():
         print("ERROR: No TOL document provided on stdin.", file=sys.stderr)
+        sys.exit(1)
+
+    tol_doc = load_tol_text(tol_text)
+    try:
+        mode = _extract_mode(tol_doc)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
 
     print("TOL input       : stdin")
@@ -76,7 +83,6 @@ def handle_run(args) -> None:
     print("Derived execution plan:")
     print("-" * 20)
 
-    tol_doc = load_tol_text(tol_text)
     actions = plan_actions(tol_doc)
 
     if dry_run == "portfolio":
@@ -148,3 +154,15 @@ def _format_quantity_value(value: object) -> str:
     if numeric == numeric.to_integral_value():
         return f"{numeric:,.0f}"
     return f"{numeric:,.4f}".rstrip("0").rstrip(".")
+
+
+def _extract_mode(tol_doc: dict[str, Any]) -> str:
+    mode = tol_doc.get("mode")
+    if mode is None:
+        raise ValueError("TOL document missing required 'mode'.")
+    if not isinstance(mode, str):
+        raise ValueError("TOL document 'mode' must be a string.")
+    normalized = mode.strip().lower()
+    if normalized not in {"paper", "live"}:
+        raise ValueError("TOL document 'mode' must be 'paper' or 'live'.")
+    return normalized
