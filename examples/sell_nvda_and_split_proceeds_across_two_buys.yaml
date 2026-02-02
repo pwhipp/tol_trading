@@ -10,13 +10,13 @@ settings:
 
 actions:
   - sell:
-      symbol: NVDA
+      symbol: NVDA.NASDAQ
       quantity: ALL
   - buy:
-      symbol: TSLA
-      using: [sellNVDA]
+      symbol: TSLA.NASDAQ
+      using: [sellNVDA.NASDAQ]
       quantity: 60%
   - buy:
-      symbol: TSM
-      using: [sellNVDA]
+      symbol: TSM.NYSE
+      using: [sellNVDA.NASDAQ]
       quantity: 40%

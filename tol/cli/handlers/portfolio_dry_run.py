@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
+import re
 from typing import Iterable, Optional
 
 from tol.ibkr.gateway import IBKRGateway
@@ -17,6 +18,7 @@ from tol.parser.planner import PlannedAction
 class QuantitySpec:
     kind: str
     value: Optional[Decimal] = None
+    currency: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -76,18 +78,23 @@ def normalize_quantity(quantity: object) -> Optional[QuantitySpec]:
             raise ValueError("Float quantity must be <= 1.0 for percentages.")
         return QuantitySpec(kind="percent", value=value)
     if isinstance(quantity, str):
-        raw = quantity.strip().upper()
-        if raw == "ALL":
+        raw = quantity.strip()
+        upper = raw.upper()
+        if upper == "ALL":
             return QuantitySpec(kind="all")
-        if raw.endswith("%"):
-            value = raw[:-1].strip()
+        if upper.endswith("%"):
+            value = upper[:-1].strip()
             if not value:
                 raise ValueError("Percent quantity is missing a value.")
             return QuantitySpec(
                 kind="percent",
                 value=_coerce_decimal(value) / Decimal("100"),
             )
-        return QuantitySpec(kind="shares", value=_coerce_decimal(raw))
+        money_match = _parse_money(raw)
+        if money_match:
+            amount, currency = money_match
+            return QuantitySpec(kind="value", value=amount, currency=currency)
+        return QuantitySpec(kind="shares", value=_coerce_decimal(upper))
     raise TypeError(f"Unsupported quantity type: {type(quantity).__name__}")
 
 
@@ -154,6 +161,8 @@ def evaluate_actions(
                 reservations,
                 normalized_pending,
             )
+        elif action.action_type == "convert":
+            _evaluate_convert(action, evaluation)
         else:
             evaluation.warnings.append(
                 f"Unknown action type '{action.action_type}'."
@@ -252,7 +261,7 @@ def _evaluate_sell(
     available_qty = position.quantity - reserved_qty
     if available_qty < 0:
         available_qty = Decimal("0")
-    required_qty = _resolve_quantity(quantity_spec, available_qty)
+    required_qty = _resolve_quantity(quantity_spec, available_qty, position.price)
     if required_qty is None:
         evaluation.errors.append("Unable to resolve sell quantity.")
         return
@@ -511,6 +520,7 @@ def _evaluate_target(
 def _resolve_quantity(
     quantity_spec: QuantitySpec,
     available_qty: Decimal,
+    price: Optional[Decimal],
 ) -> Optional[Decimal]:
     if quantity_spec.kind == "all":
         return available_qty
@@ -518,6 +528,12 @@ def _resolve_quantity(
         return quantity_spec.value
     if quantity_spec.kind == "percent" and quantity_spec.value is not None:
         return available_qty * quantity_spec.value
+    if (
+        quantity_spec.kind == "value"
+        and quantity_spec.value is not None
+        and price
+    ):
+        return quantity_spec.value / price
     return None
 
 
@@ -539,7 +555,23 @@ def _resolve_buy_requirements(
         if price is None:
             return None, quantity_spec.value
         return quantity_spec.value * price, quantity_spec.value
+    if quantity_spec.kind == "value" and quantity_spec.value is not None:
+        if price is None:
+            return quantity_spec.value, None
+        return quantity_spec.value, quantity_spec.value / price
     return None, None
+
+
+def _evaluate_convert(action: PlannedAction, evaluation: ActionEvaluation) -> None:
+    amount = action.amount
+    target = action.to
+    if not amount:
+        evaluation.errors.append("Convert actions require an amount.")
+        return
+    if not target:
+        evaluation.errors.append("Convert actions require a destination cash value.")
+        return
+    evaluation.messages.append(f"Convert {amount} to {target}.")
 
 
 def _coerce_decimal(value: object) -> Decimal:
@@ -547,6 +579,19 @@ def _coerce_decimal(value: object) -> Decimal:
         return Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise ValueError(f"Invalid numeric value: {value}") from exc
+
+
+def _parse_money(value: str) -> Optional[tuple[Decimal, str]]:
+    match = re.fullmatch(
+        r"(?P<symbol>[$€£¥])\s*(?P<amount>[0-9][0-9,]*"
+        r"(?:\.[0-9]{1,2})?)\s*\((?P<ccy>[A-Za-z]{3})\)",
+        value.strip(),
+    )
+    if not match:
+        return None
+    amount_text = match.group("amount").replace(",", "")
+    currency = match.group("ccy").upper()
+    return _coerce_decimal(amount_text), currency
 
 
 def _resolve_expected_currency(
@@ -684,6 +729,8 @@ def _describe_pending_trades(
 
 
 def _action_uses_cash(action: PlannedAction) -> bool:
+    if action.action_type == "convert":
+        return True
     for _, source_type in action.using_classified or []:
         if source_type == "cash":
             return True
@@ -696,6 +743,8 @@ def _append_pending_trade_warnings(
     pending_trades: list[PendingTrade],
 ) -> None:
     if not pending_trades:
+        return
+    if action.action_type == "convert":
         return
     action_symbol = str(action.symbol).strip().upper()
     conflicts = [

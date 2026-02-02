@@ -4,10 +4,10 @@ broker:
 
 actions:
   - target:
-      symbol: TSLA
+      symbol: TSLA.NASDAQ
       percent: 10%
-      using: [CASH, NVDA]
+      using: [CASH[USD], NVDA.NASDAQ]
   - target:
-      symbol: TSM
+      symbol: TSM.NYSE
       percent: 10%
-      using: [CASH, NVDA]
+      using: [CASH[USD], NVDA.NASDAQ]

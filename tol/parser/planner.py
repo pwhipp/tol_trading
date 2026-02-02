@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Set
+import re
+from typing import List, Optional, Set, Tuple
 
 
 @dataclass
@@ -13,6 +14,8 @@ class PlannedAction:
     using_classified: List[Tuple[str, str]] = None
     derived_id: str = ""
     depends_on: List[str] = None
+    amount: Optional[str] = None
+    to: Optional[str] = None
 
 
 def derive_action_id(action_type: str, symbol: str) -> str:
@@ -29,6 +32,8 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
 
         action_type, body = next(iter(action_entry.items()))
         symbol = body.get("symbol")
+        if action_type == "convert":
+            symbol = body.get("to")
 
         if not symbol:
             raise ValueError(f"{action_type} action at index {idx} missing symbol")
@@ -44,8 +49,12 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
             seen_ids[derived_id] = 0
 
         using = body.get("using")
-        if not using:
-            using = ["CASH"]
+        if action_type in {"buy", "target"} and not using:
+            using = [f"CASH[{_default_currency(tol_doc)}]"]
+        elif using is None:
+            using = []
+        if action_type == "convert":
+            using = []
 
         action = PlannedAction(
             index=idx,
@@ -55,7 +64,9 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
             percent=body.get("percent"),
             using=using,
             derived_id=derived_id,
-            depends_on=[]
+            depends_on=[],
+            amount=body.get("amount"),
+            to=body.get("to"),
         )
 
         actions.append(action)
@@ -81,23 +92,40 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
     return actions
 
 
+def _default_currency(tol_doc: dict) -> str:
+    candidates = [
+        tol_doc.get("default_currency"),
+        tol_doc.get("settings", {}).get("default_currency")
+        if isinstance(tol_doc.get("settings"), dict)
+        else None,
+    ]
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate.strip():
+            return candidate.strip().upper()
+    return "USD"
+
+
 def is_action_reference(source, id_map):
     return source in id_map
 
 
 def is_cash(source):
-    return source == "CASH"
+    return bool(_CASH_PATTERN.fullmatch(source))
 
 
 def is_holding(source):
-    return source.isalpha() and source.isupper()
+    return bool(_HOLDING_PATTERN.fullmatch(source))
 
 
 def classify_source(source: str, action_ids: Set[str]) -> str:
-    if source == "CASH":
+    if _CASH_PATTERN.fullmatch(source):
         return "cash"
     if source in action_ids:
         return "action"
-    if source.isalpha() and source.isupper():
+    if _HOLDING_PATTERN.fullmatch(source):
         return "holding"
     return "unknown"
+
+
+_CASH_PATTERN = re.compile(r"CASH(?:\[[A-Z]{3}\])?$")
+_HOLDING_PATTERN = re.compile(r"[A-Z0-9]+\.[A-Z0-9_]+$")

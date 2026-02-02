@@ -106,6 +106,10 @@ def handle_run(args) -> None:
             print(f"    quantity    : {action.quantity}")
         if action.percent is not None:
             print(f"    percent     : {action.percent}")
+        if action.amount is not None:
+            print(f"    amount      : {action.amount}")
+        if action.to is not None:
+            print(f"    to          : {action.to}")
         if action.using_classified:
             print("    using:")
             for source, kind in action.using_classified:

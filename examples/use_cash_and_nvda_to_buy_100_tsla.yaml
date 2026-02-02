@@ -11,6 +11,6 @@ settings:
 
 actions:
   - buy:
-      symbol: TSLA
-      from: [CASH, NVDA]
+      symbol: TSLA.NASDAQ
+      using: [CASH[USD], NVDA.NASDAQ]
       quantity: 100

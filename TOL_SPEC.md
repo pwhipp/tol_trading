@@ -61,7 +61,7 @@ Each action (A) in D.actions is defined as a mapping with the following fields:
 
 ```
     A = {
-        [action_type ∈ {sell, buy, target}]:
+        [action_type ∈ {sell, buy, target, convert}]:
             {
                 symbol: ∈ TICKERS,
                 *parameters: defined by action type below
@@ -71,11 +71,16 @@ Each action (A) in D.actions is defined as a mapping with the following fields:
 
 Each action executes at most once.
 
+For CONVERT actions, the `to` field replaces `symbol` for identification and
+does not refer to a tradable instrument.
+
 ### 4.3 Derived Action Identifier
 
 Each action has a derived identifier:
 
     id(a) = lower(type) ∘ upper(symbol)
+
+For CONVERT actions, `symbol` is the `to` cash destination.
 
 This identifier is used for dependency resolution.
 
@@ -102,9 +107,22 @@ Let:
     TICKERS = the set of all ticker identifiers recognized by the
               execution environment.
 
+Each ticker MUST include an exchange suffix, separated by a period:
+
+    <SYMBOL>.<EXCHANGE>
+
+Examples: `BHP.ASX`, `AAPL.NASDAQ`.
+
 The TOL specification does not define the contents of `TICKERS`.
 Membership in `TICKERS` is determined at execution time by the
 underlying broker or execution adapter.
+
+Settlement currencies for supported exchanges are defined in
+`EXCHANGE_CURRENCIES.yaml`.
+
+Implementations MAY use `default_exchange` and `default_currency`
+configuration values to fill in missing exchange or currency information
+when ingesting user input. Generated TOL documents MUST remain explicit.
 
 ### 4.5 Action Parameters
 
@@ -120,6 +138,10 @@ underlying broker or execution adapter.
 - **target**
 
   parameters = {percent, using}
+
+- **convert**
+
+  parameters = {amount, to}
 
 ### 4.5.1 Action Parameter Definitions
 
@@ -139,14 +161,15 @@ A quantity MUST be exactly one of the following:
   A percentage value as defined in [Section 4.5.3.3](#4533-percent) (e.g. 50%).
 
 - **Monetary quantity**  
-  A currency-denominated monetary value (e.g. $100).
+  A currency-denominated monetary value, expressed with a currency symbol,
+  an amount, and a currency code (e.g. $1,000 (USD)).
 
 - `ALL`  
   A special value representing the entire available amount (e.g. ALL).
 
 The interpretation of a quantity is context-dependent and depends on:
 - the action type (BUY or SELL)
-- the available sources at execution time#### 4.5.1 Quantity
+- the available sources at execution time
 
 ##### 4.5.1.2 using
 
@@ -156,13 +179,27 @@ or TARGET action.
 The value of `using` MUST be a non-empty set of sources.
 
 Each source MUST be one of:
-- `CASH` (e.g. CASH)
-- one of TICKERS ([Section 4.4](#44-instruments-and-tickers)) (e.g. VOO)
-- a derived identifier of a SELL action (e.g. sellTSLA)
+- `CASH[<currency>]` (e.g. CASH[USD])
+- one of TICKERS ([Section 4.4](#44-instruments-and-tickers)) (e.g. VOO.NYSE)
+- a derived identifier of a SELL action (e.g. sellTSLA.NASDAQ)
 
-If omitted, the default value of `using` is `[ CASH ]`.
+If omitted, the default value of `using` is `[ CASH[<default_currency>] ]`,
+where `default_currency` is supplied by the execution environment or
+configuration.
 
 The order of sources in `using` is not significant.
+
+##### 4.5.1.3 amount
+
+The **amount** parameter specifies a monetary quantity for a conversion.
+
+It MUST be a monetary quantity as defined in [Section 4.5.1.1](#4511-quantity).
+
+##### 4.5.1.4 to
+
+The **to** parameter specifies the destination cash balance for a conversion.
+
+It MUST be a cash source formatted as `CASH[<currency>]`.
 
 ##### 4.5.3.3 percent
 
@@ -201,6 +238,7 @@ Documents that are not well-formed MUST be rejected prior to execution.
 Actions form a directed acyclic graph (DAG).
 
 - SELL actions introduce no dependencies.
+- CONVERT actions introduce no dependencies.
 - BUY and TARGET actions depend on all referenced sources.
 - Dependencies are resolved implicitly; no explicit dependency syntax exists.
 
@@ -213,7 +251,7 @@ Dynamic semantics describe how TOL actions interact with the execution
 environment at runtime.
 
 Execution occurs relative to a **portfolio state**, which includes:
-- available cash balances
+- available cash balances, keyed by currency
 - current holdings
 - any other execution-environment–specific constraints
 
@@ -228,6 +266,8 @@ At runtime:
   value from the specified `using` sources.
 - A TARGET action is feasible only if the required implicit BUY and/or
   SELL actions are feasible when evaluated.
+- A CONVERT action is feasible only if the source currency cash balance
+  includes the specified amount.
 
 Insufficient holdings, insufficient funds, or invalid instruments are
 runtime errors and MUST be reported as execution failures.

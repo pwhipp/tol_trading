@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,8 @@ class LlmSettings:
     usage_log_level: str
     api_log_path: Path | None
     api_log_level: str
+    default_exchange: Optional[str]
+    default_currency: Optional[str]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LlmSettings":
@@ -43,6 +45,12 @@ class LlmSettings:
             usage_log_level=str(data.get("usage_log_level", "INFO")),
             api_log_path=Path(api_log_path) if api_log_path else None,
             api_log_level=str(data.get("api_log_level", "INFO")),
+            default_exchange=_normalize_optional_code(
+                data.get("default_exchange")
+            ),
+            default_currency=_normalize_optional_code(
+                data.get("default_currency")
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -60,8 +68,17 @@ class LlmSettings:
             "usage_log_level": self.usage_log_level,
             "api_log_path": str(self.api_log_path) if self.api_log_path else None,
             "api_log_level": self.api_log_level,
+            "default_exchange": self.default_exchange,
+            "default_currency": self.default_currency,
         }
         return data
+
+
+def _normalize_optional_code(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip().upper()
+    return text or None
 
 
 __all__ = ["LlmSettings"]

@@ -26,6 +26,9 @@ def test_generate_context_prompt_includes_schema_and_spec() -> None:
         spec_text=spec,
         schema_json=schema,
         mode=mode,
+        default_exchange="NYSE",
+        default_currency="USD",
+        exchange_currencies_text="exchanges: {}",
     )
 
     assert schema in prompt

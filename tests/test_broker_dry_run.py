@@ -26,7 +26,7 @@ class FakeGateway:
         currency: str = "USD",
         exchange: str = "SMART",
     ):
-        if symbol == "BAD":
+        if symbol.split(".")[0] == "BAD":
             return None
         return {"symbol": symbol, "currency": currency, "exchange": exchange}
 
@@ -40,10 +40,11 @@ class FakeGateway:
 
     def get_market_snapshot(self, contract: object) -> dict:
         symbol = contract["symbol"] if isinstance(contract, dict) else "UNKNOWN"
+        base_symbol = symbol.split(".")[0]
         return {
             "price": Decimal("250.00"),
             "currency": "USD",
-            "is_open": symbol != "CLOSED",
+            "is_open": base_symbol != "CLOSED",
         }
 
     def get_cash_by_currency(self) -> dict[str, Decimal]:
@@ -57,7 +58,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_validate_buy_action(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL", "quantity": 5}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 5}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -71,12 +72,12 @@ class TestBrokerDryRun(unittest.TestCase):
             any("Broker validation status" in msg for msg in validation.messages)
         )
         self.assertEqual(len(validation.planned_trades), 1)
-        self.assertEqual(validation.planned_trades[0].symbol, "AAPL")
+        self.assertEqual(validation.planned_trades[0].symbol, "AAPL.NASDAQ")
 
     def test_validate_symbol_failure(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "BAD", "quantity": 1}},
+                {"buy": {"symbol": "BAD.NYSE", "quantity": 1}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -87,7 +88,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_percent_quantity_warns(self) -> None:
         tol_doc = {
             "actions": [
-                {"sell": {"symbol": "AAPL", "quantity": "50%"}},
+                {"sell": {"symbol": "AAPL.NASDAQ", "quantity": "50%"}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -99,7 +100,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_percent_buy_resolves_quantity(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL", "quantity": 0.5}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 0.5}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -111,7 +112,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_market_closed_warning(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "CLOSED", "quantity": 1}},
+                {"buy": {"symbol": "CLOSED.NYSE", "quantity": 1}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -125,7 +126,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_run_broker_dry_run_disconnects(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL", "quantity": 1}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -142,7 +143,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_pending_trade_conflict_warns(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL", "quantity": 1}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -151,7 +152,7 @@ class TestBrokerDryRun(unittest.TestCase):
             FakeGateway("paper"),
             pending_trades=[
                 {
-                    "symbol": "AAPL",
+                    "symbol": "AAPL.NASDAQ",
                     "action_type": "sell",
                     "quantity": Decimal("2"),
                     "status": "Submitted",
@@ -165,6 +166,32 @@ class TestBrokerDryRun(unittest.TestCase):
         self.assertTrue(
             any("Pending trade overlap" in msg for msg in validation.warnings)
         )
+
+    def test_convert_action_checks_cash(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"convert": {"amount": "$500 (USD)", "to": "CASH[AUD]"}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        validation = validate_action_with_broker(actions[0], FakeGateway("paper"))
+
+        self.assertFalse(validation.errors)
+        expected = "Convert $500 (USD) to CASH[AUD]."
+        self.assertTrue(
+            any(expected in msg for msg in validation.messages)
+        )
+
+    def test_convert_action_insufficient_cash(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"convert": {"amount": "$2,000 (USD)", "to": "CASH[AUD]"}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        validation = validate_action_with_broker(actions[0], FakeGateway("paper"))
+
+        self.assertTrue(validation.errors)
 
 
 if __name__ == "__main__":

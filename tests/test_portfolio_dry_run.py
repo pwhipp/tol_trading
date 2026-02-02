@@ -28,10 +28,15 @@ class TestPortfolioDryRun(unittest.TestCase):
         self.assertEqual(qty_float.kind, "percent")
         self.assertEqual(qty_float.value, Decimal("0.5"))
 
+        qty_value = normalize_quantity("$1,000 (USD)")
+        self.assertEqual(qty_value.kind, "value")
+        self.assertEqual(qty_value.value, Decimal("1000"))
+        self.assertEqual(qty_value.currency, "USD")
+
     def test_sell_insufficient_holdings(self) -> None:
         tol_doc = {
             "actions": [
-                {"sell": {"symbol": "AAPL", "quantity": 10}},
+                {"sell": {"symbol": "AAPL.NASDAQ", "quantity": 10}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -39,7 +44,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             {"USD": Decimal("1000")},
             [
                 {
-                    "symbol": "AAPL",
+                    "symbol": "AAPL.NASDAQ",
                     "quantity": Decimal("5"),
                     "market_value": Decimal("500"),
                     "currency": "USD",
@@ -53,7 +58,13 @@ class TestPortfolioDryRun(unittest.TestCase):
     def test_buy_with_cash_sources(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "MSFT", "quantity": 5, "using": ["CASH"]}},
+                {
+                    "buy": {
+                        "symbol": "MSFT.NASDAQ",
+                        "quantity": 5,
+                        "using": ["CASH[USD]"],
+                    }
+                },
             ]
         }
         actions = plan_actions(tol_doc)
@@ -61,7 +72,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             {"USD": Decimal("1000")},
             [
                 {
-                    "symbol": "MSFT",
+                    "symbol": "MSFT.NASDAQ",
                     "quantity": Decimal("10"),
                     "market_value": Decimal("1000"),
                     "currency": "USD",
@@ -75,12 +86,18 @@ class TestPortfolioDryRun(unittest.TestCase):
             any("Estimated spend" in msg for msg in evaluations[0].messages)
         )
         self.assertEqual(len(evaluations[0].planned_trades), 1)
-        self.assertEqual(evaluations[0].planned_trades[0].symbol, "MSFT")
+        self.assertEqual(evaluations[0].planned_trades[0].symbol, "MSFT.NASDAQ")
 
     def test_buy_uses_matching_currency_cash(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "TSLA", "quantity": 1.0, "using": ["CASH"]}},
+                {
+                    "buy": {
+                        "symbol": "TSLA.NASDAQ",
+                        "quantity": 1.0,
+                        "using": ["CASH[USD]"],
+                    }
+                },
             ]
         }
         actions = plan_actions(tol_doc)
@@ -88,7 +105,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             {"USD": Decimal("100"), "AUD": Decimal("200")},
             [
                 {
-                    "symbol": "TSLA",
+                    "symbol": "TSLA.NASDAQ",
                     "quantity": Decimal("10"),
                     "market_value": Decimal("1000"),
                     "currency": "USD",
@@ -110,9 +127,9 @@ class TestPortfolioDryRun(unittest.TestCase):
             "actions": [
                 {
                     "target": {
-                        "symbol": "AAPL",
+                        "symbol": "AAPL.NASDAQ",
                         "percent": 75,
-                        "using": ["CASH", "AAPL"],
+                        "using": ["CASH[USD]", "AAPL.NASDAQ"],
                     }
                 }
             ]
@@ -122,7 +139,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             {"USD": Decimal("1000")},
             [
                 {
-                    "symbol": "AAPL",
+                    "symbol": "AAPL.NASDAQ",
                     "quantity": Decimal("10"),
                     "market_value": Decimal("1000"),
                     "currency": "USD",
@@ -140,7 +157,7 @@ class TestPortfolioDryRun(unittest.TestCase):
     def test_pending_trade_conflict_adjusts_holdings(self) -> None:
         tol_doc = {
             "actions": [
-                {"sell": {"symbol": "AAPL", "quantity": 5}},
+                {"sell": {"symbol": "AAPL.NASDAQ", "quantity": 5}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -148,7 +165,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             {"USD": Decimal("1000")},
             [
                 {
-                    "symbol": "AAPL",
+                    "symbol": "AAPL.NASDAQ",
                     "quantity": Decimal("5"),
                     "market_value": Decimal("500"),
                     "currency": "USD",
@@ -161,7 +178,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             snapshot,
             pending_trades=[
                 {
-                    "symbol": "AAPL",
+                    "symbol": "AAPL.NASDAQ",
                     "action_type": "buy",
                     "quantity": Decimal("2"),
                     "status": "Submitted",
@@ -176,11 +193,27 @@ class TestPortfolioDryRun(unittest.TestCase):
             any("Pending trade overlap" in msg for msg in evaluations[0].warnings)
         )
 
+    def test_convert_action_reports_message(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"convert": {"amount": "$1,000 (USD)", "to": "CASH[AUD]"}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        snapshot = build_snapshot({"USD": Decimal("1000")}, [])
+
+        evaluations = evaluate_actions(actions, snapshot)
+        self.assertFalse(evaluations[0].errors)
+        expected = "Convert $1,000 (USD) to CASH[AUD]."
+        self.assertTrue(
+            any(expected in msg for msg in evaluations[0].messages)
+        )
+
     def test_pending_buy_reserves_cash(self) -> None:
         pending = normalize_pending_trades(
             [
                 {
-                    "symbol": "VOO",
+                    "symbol": "VOO.NYSE",
                     "action_type": "buy",
                     "quantity": Decimal("2"),
                     "status": "Submitted",
@@ -198,7 +231,7 @@ class TestPortfolioDryRun(unittest.TestCase):
         pending = normalize_pending_trades(
             [
                 {
-                    "symbol": "TSLA",
+                    "symbol": "TSLA.NASDAQ",
                     "action_type": "sell",
                     "quantity": Decimal("10"),
                     "status": "Submitted",
@@ -208,12 +241,21 @@ class TestPortfolioDryRun(unittest.TestCase):
         )
         reservations, warnings = _derive_reservations(pending)
         self.assertFalse(warnings)
-        self.assertEqual(reservations.shares_by_symbol["TSLA"], Decimal("10"))
+        self.assertEqual(
+            reservations.shares_by_symbol["TSLA.NASDAQ"],
+            Decimal("10"),
+        )
 
     def test_reserved_cash_blocks_buy(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL", "quantity": 10, "using": ["CASH"]}},
+                {
+                    "buy": {
+                        "symbol": "AAPL.NASDAQ",
+                        "quantity": 10,
+                        "using": ["CASH[USD]"],
+                    }
+                },
             ]
         }
         actions = plan_actions(tol_doc)
@@ -221,7 +263,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             {"USD": Decimal("1000")},
             [
                 {
-                    "symbol": "AAPL",
+                    "symbol": "AAPL.NASDAQ",
                     "quantity": Decimal("5"),
                     "market_value": Decimal("500"),
                     "currency": "USD",
@@ -234,7 +276,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             snapshot,
             pending_trades=[
                 {
-                    "symbol": "VOO",
+                    "symbol": "VOO.NYSE",
                     "action_type": "buy",
                     "quantity": Decimal("5"),
                     "status": "Submitted",
@@ -255,9 +297,9 @@ class TestPortfolioDryRun(unittest.TestCase):
             "actions": [
                 {
                     "target": {
-                        "symbol": "TSLA",
+                        "symbol": "TSLA.NASDAQ",
                         "percent": 10,
-                        "using": ["CASH", "NVDA"],
+                        "using": ["CASH[USD]", "NVDA.NASDAQ"],
                     }
                 }
             ]
@@ -267,13 +309,13 @@ class TestPortfolioDryRun(unittest.TestCase):
             {"USD": Decimal("1000")},
             [
                 {
-                    "symbol": "TSLA",
+                    "symbol": "TSLA.NASDAQ",
                     "quantity": Decimal("10"),
                     "market_value": Decimal("1000"),
                     "currency": "USD",
                 },
                 {
-                    "symbol": "NVDA",
+                    "symbol": "NVDA.NASDAQ",
                     "quantity": Decimal("5"),
                     "market_value": Decimal("500"),
                     "currency": "USD",
@@ -286,7 +328,7 @@ class TestPortfolioDryRun(unittest.TestCase):
             snapshot,
             pending_trades=[
                 {
-                    "symbol": "TSLA",
+                    "symbol": "TSLA.NASDAQ",
                     "action_type": "sell",
                     "quantity": Decimal("10"),
                     "status": "Submitted",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
+import re
 from typing import Callable, Iterable, Optional, Protocol
 
 from tol.ibkr.gateway import IBKRGateway
@@ -126,6 +127,15 @@ def validate_action_with_broker(
         symbol=action.symbol,
     )
     normalized_pending = normalize_pending_trades(pending_trades)
+
+    if action.action_type == "convert":
+        _validate_convert_action(
+            action,
+            gateway,
+            normalized_pending,
+            validation,
+        )
+        return validation
 
     sanitized_symbol = _sanitize_symbol(action.symbol, validation)
     if sanitized_symbol is None:
@@ -407,6 +417,76 @@ def _append_planned_trade(
             currency=snapshot["currency"],
         )
     )
+
+
+def _validate_convert_action(
+    action: PlannedAction,
+    gateway: BrokerGateway,
+    pending_trades: list[PendingTrade],
+    validation: BrokerValidation,
+) -> None:
+    amount_text = action.amount
+    target = action.to
+    if not amount_text:
+        validation.errors.append("Convert actions require an amount.")
+        return
+    if not target:
+        validation.errors.append("Convert actions require a destination cash value.")
+        return
+    parsed = _parse_money(amount_text, validation)
+    if parsed is None:
+        return
+    amount, currency = parsed
+    destination = _parse_cash_destination(target)
+    if destination is None:
+        validation.errors.append(
+            "Convert destination must be formatted as CASH[CCY]."
+        )
+        return
+    cash_by_currency = _apply_pending_trades_to_cash(
+        gateway.get_cash_by_currency(),
+        pending_trades,
+        validation,
+    )
+    available = cash_by_currency.get(currency, Decimal("0"))
+    if available < amount:
+        validation.errors.append(
+            f"Insufficient {currency} cash to convert {amount:,.2f}."
+        )
+        return
+    validation.messages.append(
+        f"Convert {amount_text} to {destination}."
+    )
+
+
+def _parse_money(
+    value: str,
+    validation: BrokerValidation,
+) -> Optional[tuple[Decimal, str]]:
+    match = re.fullmatch(
+        r"(?P<symbol>[$€£¥])\s*(?P<amount>[0-9][0-9,]*"
+        r"(?:\.[0-9]{1,2})?)\s*\((?P<ccy>[A-Za-z]{3})\)",
+        value.strip(),
+    )
+    if not match:
+        validation.errors.append("Convert amount must be formatted as $1,000 (USD).")
+        return None
+    amount_text = match.group("amount").replace(",", "")
+    currency = match.group("ccy").upper()
+    amount = _coerce_decimal(amount_text, validation)
+    if amount is None:
+        return None
+    if amount <= 0:
+        validation.errors.append("Convert amount must be positive.")
+        return None
+    return amount, currency
+
+
+def _parse_cash_destination(value: str) -> Optional[str]:
+    match = re.fullmatch(r"CASH\[[A-Z]{3}\]", value.strip().upper())
+    if not match:
+        return None
+    return match.group(0)
 
 
 def _coerce_decimal(

@@ -24,6 +24,8 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     "usage_log_level": {"default": "INFO", "parser": str},
     "api_log_path": {"default": "llm_api.log", "parser": str},
     "api_log_level": {"default": "INFO", "parser": str},
+    "default_exchange": {"default": None, "parser": str},
+    "default_currency": {"default": None, "parser": str},
 }
 
 
@@ -82,7 +84,12 @@ def set_setting(settings: LlmSettings, key: str, raw_value: str) -> LlmSettings:
             raise ValueError("mode must be 'paper' or 'live'")
         raw_value = normalized
     parser = CONFIG_PARAMS[key]["parser"]
-    if raw_value == "" and key in {"usage_log_path", "api_log_path"}:
+    if raw_value == "" and key in {
+        "usage_log_path",
+        "api_log_path",
+        "default_exchange",
+        "default_currency",
+    }:
         value: Any = None
     else:
         value = parser(raw_value)

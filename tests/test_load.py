@@ -12,8 +12,8 @@ def test_load_converts_all_and_percent(tmp_path: Path) -> None:
 {
   "version": 1,
   "actions": [
-    {"buy": {"symbol": "TSLA", "quantity": "ALL"}},
-    {"sell": {"symbol": "NVDA", "quantity": "25%"}}
+    {"buy": {"symbol": "TSLA.NASDAQ", "quantity": "ALL"}},
+    {"sell": {"symbol": "NVDA.NASDAQ", "quantity": "25%"}}
   ]
 }
 """,
@@ -33,7 +33,7 @@ def test_load_converts_string_integer(tmp_path: Path) -> None:
 {
   "version": 1,
   "actions": [
-    {"buy": {"symbol": "TSLA", "quantity": "100"}}
+    {"buy": {"symbol": "TSLA.NASDAQ", "quantity": "100"}}
   ]
 }
 """,
@@ -51,7 +51,7 @@ def test_load_rejects_float_greater_than_one(tmp_path: Path) -> None:
 {
   "version": 1,
   "actions": [
-    {"buy": {"symbol": "TSLA", "quantity": 1.5}}
+    {"buy": {"symbol": "TSLA.NASDAQ", "quantity": 1.5}}
   ]
 }
 """,
@@ -69,7 +69,7 @@ def test_load_parses_target_percent_string(tmp_path: Path) -> None:
 {
   "version": 1,
   "actions": [
-    {"target": {"symbol": "AAPL", "percent": "25%"}}
+    {"target": {"symbol": "AAPL.NASDAQ", "percent": "25%"}}
   ]
 }
 """,
@@ -85,7 +85,7 @@ def test_load_from_text_and_dump_round_trip() -> None:
 {
   "version": 1,
   "actions": [
-    {"sell": {"symbol": "NVDA", "quantity": "50%"}}
+    {"sell": {"symbol": "NVDA.NASDAQ", "quantity": "50%"}}
   ]
 }
 """
@@ -106,7 +106,7 @@ def test_load_normalizes_using_sources() -> None:
       "buy": {
         "symbol": "TSM",
         "quantity": "50%",
-        "using": ["proceeds from VOO", "CASH"]
+        "using": ["proceeds from VOO.NYSE", "CASH[usd]"]
       }
     }
   ]
@@ -115,7 +115,7 @@ def test_load_normalizes_using_sources() -> None:
     tol_doc = load_tol_text(source)
     using = tol_doc["actions"][0]["buy"]["using"]
 
-    assert using == ["sellVOO", "CASH"]
+    assert using == ["sellVOO.NYSE", "CASH[USD]"]
 
 
 def test_load_normalizes_money_quantity() -> None:
@@ -123,9 +123,9 @@ def test_load_normalizes_money_quantity() -> None:
 {
   "version": 1,
   "actions": [
-    {"buy": {"symbol": "AAPL", "quantity": "$50.00"}}
+    {"buy": {"symbol": "AAPL.NASDAQ", "quantity": "$50.00 (USD)"}}
   ]
 }
 """
     tol_doc = load_tol_text(source)
-    assert tol_doc["actions"][0]["buy"]["quantity"] == "$50"
+    assert tol_doc["actions"][0]["buy"]["quantity"] == "$50 (USD)"
