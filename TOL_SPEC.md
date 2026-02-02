@@ -150,7 +150,7 @@ Documents violating this invariant are invalid and MUST be rejected.
 > **Rationale**
 >
 > Actions with identical type and symbol are always reducible.
-> Requiring uniqueness eliminates ambiguity and ensures deterministic execution.
+Requiring uniqueness eliminates ambiguity and ensures deterministic execution.
 
 ### 4.4 Instruments and Tickers
 
@@ -246,7 +246,9 @@ configuration.
 
 The order of sources in `using` is not significant.
 
-Including `CASH (<currency>)` alongside SELL action identifiers is still
+> **Rationale**
+> 
+> Including `CASH (<currency>)` alongside SELL action identifiers is still
 meaningful: the cash entry permits the use of existing cash balances, while the
 action identifiers establish dependencies that ensure the SELL actions execute
 before the BUY or TARGET action and make proceeds eligible for use once those
