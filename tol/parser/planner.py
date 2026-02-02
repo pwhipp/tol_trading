@@ -53,7 +53,12 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
 
         using = body.get("using")
         if action_type in {"buy", "target"} and not using:
-            using = [f"CASH ({_default_currency(tol_doc)})"]
+            default_currency = _default_currency(tol_doc)
+            if not default_currency:
+                raise ValueError(
+                    f"{action_type} action at index {idx} requires using sources"
+                )
+            using = [f"CASH ({default_currency})"]
         elif using is None:
             using = []
         if action_type == "fx":
@@ -95,7 +100,7 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
     return actions
 
 
-def _default_currency(tol_doc: dict) -> str:
+def _default_currency(tol_doc: dict) -> Optional[str]:
     candidates = [
         tol_doc.get("default_currency"),
         tol_doc.get("settings", {}).get("default_currency")
@@ -105,7 +110,7 @@ def _default_currency(tol_doc: dict) -> str:
     for candidate in candidates:
         if isinstance(candidate, str) and candidate.strip():
             return candidate.strip().upper()
-    return "USD"
+    return None
 
 
 def is_action_reference(source, id_map):

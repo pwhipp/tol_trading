@@ -84,7 +84,7 @@
 
     "sellAction": {
       "type": "object",
-      "required": ["symbol", "quantity"],
+      "required": ["symbol", "quantity", "using"],
       "additionalProperties": false,
       "properties": {
         "symbol": { "$ref": "#/$defs/ticker" },
@@ -105,7 +105,7 @@
 
     "targetAction": {
       "type": "object",
-      "required": ["symbol", "percent"],
+      "required": ["symbol", "percent", "using"],
       "additionalProperties": false,
       "properties": {
         "symbol": { "$ref": "#/$defs/ticker" },

@@ -6,6 +6,7 @@ import re
 from typing import Iterable, Optional
 
 from tol.ibkr.gateway import IBKRGateway
+from tol.exchange import resolve_exchange_currency
 from tol.cli.handlers.pending_trades import (
     PendingTrade,
     format_pending_trade,
@@ -146,6 +147,7 @@ def evaluate_actions(
                 normalized_pending,
             )
         elif action.action_type == "buy":
+            _validate_using_currency(action, evaluation)
             _evaluate_buy(
                 action,
                 snapshot,
@@ -154,6 +156,7 @@ def evaluate_actions(
                 normalized_pending,
             )
         elif action.action_type == "target":
+            _validate_using_currency(action, evaluation)
             _evaluate_target(
                 action,
                 snapshot,
@@ -774,6 +777,45 @@ def _format_quantity(value: Decimal) -> str:
     if value == value.to_integral_value():
         return f"{value:,.0f}"
     return f"{value:,.4f}".rstrip("0").rstrip(".")
+
+
+def _validate_using_currency(
+    action: PlannedAction,
+    evaluation: ActionEvaluation,
+) -> None:
+    if action.action_type not in {"buy", "target"}:
+        return
+    expected_currency = _resolve_exchange_currency(action.symbol)
+    if not expected_currency:
+        return
+    cash_currencies = [
+        currency
+        for source, source_type in action.using_classified or []
+        if source_type == "cash"
+        for currency in [_extract_cash_currency(source)]
+        if currency
+    ]
+    for currency in cash_currencies:
+        if currency != expected_currency:
+            evaluation.errors.append(
+                "Using cash in "
+                f"{currency} does not match exchange currency {expected_currency}."
+            )
+            return
+
+
+def _extract_cash_currency(source: str) -> Optional[str]:
+    match = re.fullmatch(r"CASH \(([A-Z]{3})\)", source)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def _resolve_exchange_currency(symbol: str) -> Optional[str]:
+    if "." not in symbol:
+        return None
+    _, exchange = symbol.rsplit(".", 1)
+    return resolve_exchange_currency(exchange)
 
 
 def _describe_pending_trades(

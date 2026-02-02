@@ -58,7 +58,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_validate_buy_action(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 5}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 5, "using": ["CASH (USD)"]}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -77,7 +77,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_validate_symbol_failure(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "BAD.NYSE", "quantity": 1}},
+                {"buy": {"symbol": "BAD.NYSE", "quantity": 1, "using": ["CASH (USD)"]}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -100,7 +100,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_percent_buy_resolves_quantity(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 0.5}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 0.5, "using": ["CASH (USD)"]}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -112,7 +112,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_market_closed_warning(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "CLOSED.NYSE", "quantity": 1}},
+                {"buy": {"symbol": "CLOSED.NYSE", "quantity": 1, "using": ["CASH (USD)"]}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -126,7 +126,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_run_broker_dry_run_disconnects(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1, "using": ["CASH (USD)"]}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -143,7 +143,7 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_pending_trade_conflict_warns(self) -> None:
         tol_doc = {
             "actions": [
-                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1}},
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1, "using": ["CASH (USD)"]}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -166,6 +166,17 @@ class TestBrokerDryRun(unittest.TestCase):
         self.assertTrue(
             any("Pending trade overlap" in msg for msg in validation.warnings)
         )
+
+    def test_buy_cash_currency_mismatch_errors(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"buy": {"symbol": "BHP.ASX", "quantity": 1, "using": ["CASH (USD)"]}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        validation = validate_action_with_broker(actions[0], FakeGateway("paper"))
+
+        self.assertTrue(validation.errors)
 
     def test_fx_action_checks_cash(self) -> None:
         tol_doc = {

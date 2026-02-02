@@ -175,14 +175,16 @@ The interpretation of a quantity is context-dependent and depends on:
 The **using** parameter specifies the funding sources available to a BUY
 or TARGET action.
 
-The value of `using` MUST be a non-empty set of sources.
+The value of `using` MUST be a non-empty set of sources. If omitted, an
+implementation MAY populate it from `default_currency`; otherwise the document
+MUST be rejected.
 
 Each source MUST be one of:
 - `CASH (<currency>)` (e.g. CASH (USD))
 - one of TICKERS ([Section 4.4](#44-instruments-and-tickers)) (e.g. VOO.NYSE)
 - a derived identifier of a SELL action (e.g. sellTSLA.NASDAQ)
 
-If omitted, the default value of `using` is `[ CASH (<default_currency>) ]`,
+If supplied, the default value of `using` is `[ CASH (<default_currency>) ]`,
 where `default_currency` is supplied by the execution environment or
 configuration.
 

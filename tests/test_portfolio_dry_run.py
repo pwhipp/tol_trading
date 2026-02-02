@@ -193,6 +193,37 @@ class TestPortfolioDryRun(unittest.TestCase):
             any("Pending trade overlap" in msg for msg in evaluations[0].warnings)
         )
 
+    def test_buy_requires_using(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1}},
+            ]
+        }
+        with self.assertRaises(ValueError):
+            plan_actions(tol_doc)
+
+    def test_buy_cash_currency_mismatch_errors(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"buy": {"symbol": "BHP.ASX", "quantity": 1, "using": ["CASH (USD)"]}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        snapshot = build_snapshot(
+            {"USD": Decimal("1000")},
+            [
+                {
+                    "symbol": "BHP.ASX",
+                    "quantity": Decimal("5"),
+                    "market_value": Decimal("500"),
+                    "currency": "AUD",
+                }
+            ],
+        )
+
+        evaluations = evaluate_actions(actions, snapshot)
+        self.assertTrue(evaluations[0].errors)
+
     def test_fx_action_reports_message(self) -> None:
         tol_doc = {
             "actions": [
