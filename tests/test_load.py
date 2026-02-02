@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from tol.load import (
+    apply_tol_defaults,
     check_tol_syntax_and_static_semantics,
     dump_tol,
     load_tol,
@@ -200,3 +201,17 @@ def test_check_rejects_invalid_mode() -> None:
         check_tol_syntax_and_static_semantics(
             {"version": 1, "mode": "sandbox", "actions": []}
         )
+
+
+def test_apply_defaults_sets_version_and_mode() -> None:
+    document = apply_tol_defaults({"actions": []}, mode="paper")
+
+    assert document["version"] == 1
+    assert document["mode"] == "paper"
+
+
+def test_apply_defaults_preserves_existing_values() -> None:
+    document = apply_tol_defaults({"version": 2, "mode": "live", "actions": []})
+
+    assert document["version"] == 2
+    assert document["mode"] == "live"

@@ -38,6 +38,22 @@ def normalize_tol_document(tol_doc: dict[str, Any] | None) -> dict[str, Any]:
     return tol_doc
 
 
+def apply_tol_defaults(
+    tol_doc: dict[str, Any],
+    *,
+    version: int = 1,
+    mode: str | None = None,
+) -> dict[str, Any]:
+    if not isinstance(tol_doc, dict):
+        return tol_doc
+    updated = dict(tol_doc)
+    if "version" not in updated:
+        updated["version"] = version
+    if mode and "mode" not in updated:
+        updated["mode"] = mode
+    return updated
+
+
 def check_tol_syntax_and_static_semantics(tol_doc: dict[str, Any] | None) -> None:
     if not isinstance(tol_doc, dict):
         raise ValueError("TOL document must be a mapping.")
