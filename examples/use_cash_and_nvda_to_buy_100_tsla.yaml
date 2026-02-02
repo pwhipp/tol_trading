@@ -2,7 +2,6 @@ version: 1
 
 broker:
   mode: paper
-  currency: USD
 
 settings:
   slippage: 0.005

@@ -1,6 +1,5 @@
 broker:
   mode: paper
-  currency: USD
 
 actions:
   - buy:
