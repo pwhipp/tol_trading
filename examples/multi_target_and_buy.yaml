@@ -1,5 +1,8 @@
+version: 1
+
+mode: paper
+
 broker:
-  mode: paper
   execution:
     target_percent: 4%
 
