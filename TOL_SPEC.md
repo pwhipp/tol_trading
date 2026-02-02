@@ -246,6 +246,12 @@ configuration.
 
 The order of sources in `using` is not significant.
 
+Including `CASH (<currency>)` alongside SELL action identifiers is still
+meaningful: the cash entry permits the use of existing cash balances, while the
+action identifiers establish dependencies that ensure the SELL actions execute
+before the BUY or TARGET action and make proceeds eligible for use once those
+SELL actions complete.
+
 ##### 4.5.1.3 from
 
 The **from** parameter specifies the source currency code for an FX conversion.
