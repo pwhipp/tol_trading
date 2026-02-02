@@ -1,5 +1,7 @@
 broker:
   mode: paper
+  execution:
+    target_percent: 4%
 
 actions:
   - buy:

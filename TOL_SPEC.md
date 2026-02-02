@@ -49,11 +49,67 @@ A TOL document (D) is a mapping with the following fields:
     D = {
         version: ℕ,
         mode: {paper, live},
+        broker?: B,
         actions: [a₁, a₂, …, aₙ]
     }
 ```
 
 The order of `actions` is significant and MUST be preserved.
+
+The `broker` field is OPTIONAL and provides execution guidance for the
+underlying broker or execution adapter.
+
+### 4.1.1 Broker
+
+A broker configuration (B) is a mapping with the following fields:
+
+```
+    B = {
+        execution?: E
+    }
+```
+
+The `execution` policy is OPTIONAL. If omitted, implementations MUST use
+their default execution policy. If provided, all fields within the
+execution policy are OPTIONAL and MAY be merged with defaults.
+
+### 4.1.2 Execution Policy
+
+An execution policy (E) is a mapping with the following fields:
+
+```
+    E = {
+        target_percent?: percent,
+        partials?: {
+            buy?: {allow, forbid},
+            sell?: {allow, forbid}
+        },
+        max_duration?: ℕ  # hours
+    }
+```
+
+The execution policy applies to all actions in the document.
+Implementations MUST NOT exceed the target quantity implied by an action.
+Execution SHOULD prefer placing orders over precision: partial fills are
+acceptable when the `partials` policy allows.
+
+Unless explicitly specified, implementations MUST default to:
+
+- `target_percent`: `1%`
+- `partials.buy`: `allow`
+- `partials.sell`: `allow`
+- `max_duration`: `4` hours
+
+Buy semantics are defined as follows:
+
+- Buy quantities MUST be rounded down.
+- Target percentages MUST be treated as upper bounds: buy as much as
+  possible without exceeding the target.
+- If prices move during execution, smaller resulting positions are
+  acceptable.
+
+Implementations MUST emit no more than one broker order per instrument
+when running a TOL document.
 
 ### 4.2 Actions
 

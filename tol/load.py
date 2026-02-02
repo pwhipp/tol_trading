@@ -27,6 +27,14 @@ def normalize_tol_document(tol_doc: dict[str, Any] | None) -> dict[str, Any]:
     if isinstance(actions, list):
         tol_doc["actions"] = [_normalize_action(action) for action in actions]
 
+    broker = tol_doc.get("broker")
+    if isinstance(broker, dict):
+        normalized_execution = _normalize_execution(broker.get("execution"))
+        if normalized_execution is not None:
+            normalized_broker = dict(broker)
+            normalized_broker["execution"] = normalized_execution
+            tol_doc["broker"] = normalized_broker
+
     return tol_doc
 
 
@@ -88,6 +96,29 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
         body["using"] = _normalize_using(body["using"])
 
     return {action_type: body}
+
+
+def _normalize_execution(execution: Any) -> dict[str, Any] | None:
+    if not isinstance(execution, dict):
+        return None
+    normalized = dict(execution)
+    if "target_percent" in normalized:
+        normalized["target_percent"] = _normalize_percent(normalized["target_percent"])
+    if "partials" in normalized:
+        normalized["partials"] = _normalize_partials(normalized["partials"])
+    return normalized
+
+
+def _normalize_partials(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    return {key: _normalize_partial_policy(policy) for key, policy in value.items()}
+
+
+def _normalize_partial_policy(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    return value.strip().lower()
 
 
 def _normalize_using(value: Any) -> Any:

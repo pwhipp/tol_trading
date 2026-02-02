@@ -2,6 +2,9 @@ version: 1
 
 broker:
   mode: paper
+  execution:
+    partials:
+      buy: forbid
 
 settings:
   slippage: 0.005        # 0.5%

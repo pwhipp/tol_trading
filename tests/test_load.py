@@ -162,6 +162,34 @@ def test_load_normalizes_money_quantity() -> None:
     assert tol_doc["actions"][0]["buy"]["quantity"] == "$50 (USD)"
 
 
+def test_load_normalizes_broker_execution_policy() -> None:
+    source = """
+{
+  "version": 1,
+  "mode": "paper",
+  "broker": {
+    "execution": {
+      "target_percent": 1,
+      "partials": {
+        "buy": "ALLOW",
+        "sell": "Forbid"
+      },
+      "max_duration": 4
+    }
+  },
+  "actions": [
+    {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 10}}
+  ]
+}
+"""
+    tol_doc = load_tol_text(source)
+    execution = tol_doc["broker"]["execution"]
+
+    assert execution["target_percent"] == "1%"
+    assert execution["partials"] == {"buy": "allow", "sell": "forbid"}
+    assert execution["max_duration"] == 4
+
+
 def test_check_requires_mode() -> None:
     with pytest.raises(ValueError):
         check_tol_syntax_and_static_semantics({"version": 1, "actions": []})
