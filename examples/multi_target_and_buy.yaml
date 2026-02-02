@@ -1,11 +1,7 @@
 broker:
   mode: paper
   execution:
-    target_percent: 1%
-    partials:
-      buy: allow
-      sell: allow
-    max_duration: 4
+    target_percent: 4%
 
 actions:
   - buy:

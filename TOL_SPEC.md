@@ -65,12 +65,9 @@ A broker configuration (B) is a mapping with the following fields:
 
 ```
     B = {
-        mode?: {paper, live},
         execution?: E
     }
 ```
-
-If supplied, `broker.mode` MUST match the document `mode`.
 
 The `execution` policy is OPTIONAL. If omitted, implementations MUST use
 their default execution policy. If provided, all fields within the
@@ -95,6 +92,13 @@ The execution policy applies to all actions in the document.
 Implementations MUST NOT exceed the target quantity implied by an action.
 Execution SHOULD prefer placing orders over precision: partial fills are
 acceptable when the `partials` policy allows.
+
+Unless explicitly specified, implementations MUST default to:
+
+- `target_percent`: `1%`
+- `partials.buy`: `allow`
+- `partials.sell`: `allow`
+- `max_duration`: `4` hours
 
 Buy semantics are defined as follows:
 
