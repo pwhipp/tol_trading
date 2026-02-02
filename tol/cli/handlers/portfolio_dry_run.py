@@ -569,9 +569,27 @@ def _evaluate_convert(action: PlannedAction, evaluation: ActionEvaluation) -> No
         evaluation.errors.append("Convert actions require an amount.")
         return
     if not target:
-        evaluation.errors.append("Convert actions require a destination cash value.")
+        evaluation.errors.append("Convert actions require a destination currency.")
         return
-    evaluation.messages.append(f"Convert {amount} to {target}.")
+    parsed = _parse_money(amount)
+    if parsed is None:
+        evaluation.errors.append(
+            "Convert amount must be formatted as $1,000 (USD)."
+        )
+        return
+    _, currency = parsed
+    destination = target.strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", destination):
+        evaluation.errors.append(
+            "Convert destination must be a three-letter currency code."
+        )
+        return
+    if destination == currency:
+        evaluation.errors.append(
+            "Convert destination must differ from the source currency."
+        )
+        return
+    evaluation.messages.append(f"Convert {amount} to {destination}.")
 
 
 def _coerce_decimal(value: object) -> Decimal:

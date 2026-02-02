@@ -47,7 +47,7 @@
 
     "cashSource": {
       "type": "string",
-      "pattern": "^CASH\\[[A-Z]{3}\\]$",
+      "pattern": "^CASH \\([A-Z]{3}\\)$",
       "description": "Cash balance in a specific currency"
     },
 
@@ -120,7 +120,10 @@
       "additionalProperties": false,
       "properties": {
         "amount": { "$ref": "#/$defs/money" },
-        "to": { "$ref": "#/$defs/cashSource" }
+        "to": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
       }
     },
 

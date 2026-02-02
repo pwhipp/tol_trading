@@ -38,7 +38,10 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
         if not symbol:
             raise ValueError(f"{action_type} action at index {idx} missing symbol")
 
-        derived_id = derive_action_id(action_type, symbol)
+        if action_type == "convert":
+            derived_id = f"convert{idx + 1}"
+        else:
+            derived_id = derive_action_id(action_type, symbol)
 
         # Disambiguate duplicates deterministically
         if derived_id in seen_ids:
@@ -50,7 +53,7 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
 
         using = body.get("using")
         if action_type in {"buy", "target"} and not using:
-            using = [f"CASH[{_default_currency(tol_doc)}]"]
+            using = [f"CASH ({_default_currency(tol_doc)})"]
         elif using is None:
             using = []
         if action_type == "convert":
@@ -71,7 +74,7 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
 
         actions.append(action)
 
-    id_map = {a.derived_id: a for a in actions}
+    id_map = {a.derived_id: a for a in actions if a.action_type != "convert"}
     action_ids = set(id_map.keys())
 
     for action in actions:
@@ -127,5 +130,5 @@ def classify_source(source: str, action_ids: Set[str]) -> str:
     return "unknown"
 
 
-_CASH_PATTERN = re.compile(r"CASH(?:\[[A-Z]{3}\])?$")
+_CASH_PATTERN = re.compile(r"CASH \([A-Z]{3}\)$")
 _HOLDING_PATTERN = re.compile(r"[A-Z0-9]+\.[A-Z0-9_]+$")

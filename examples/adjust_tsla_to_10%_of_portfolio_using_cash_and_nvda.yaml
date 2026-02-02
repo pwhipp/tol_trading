@@ -12,4 +12,4 @@ actions:
   - target:
       symbol: TSLA.NASDAQ
       percent: 10%
-      using: [CASH[USD], NVDA.NASDAQ]
+      using: [CASH (USD), NVDA.NASDAQ]

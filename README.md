@@ -101,7 +101,7 @@ This expresses intent clearly:
 - Sell NVDA on NASDAQ
 - Split the proceeds evenly between TSLA and VOO on their respective exchanges
 
-Cash sources are always explicit about currency (e.g. `CASH[USD]`), and cash
+Cash sources are always explicit about currency (e.g. `CASH (USD)`), and cash
 amounts include both a currency symbol and code (e.g. `$1,000 (USD)`).
 
 Conversions between cash currencies are expressed with `convert` actions:
@@ -115,7 +115,7 @@ settings:
 actions:
   - convert:
       amount: $1,000 (USD)
-      to: CASH[AUD]
+      to: AUD
 ```
 
 When generating TOL from natural language, the configuration can supply

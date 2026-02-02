@@ -437,10 +437,15 @@ def _validate_convert_action(
     if parsed is None:
         return
     amount, currency = parsed
-    destination = _parse_cash_destination(target)
+    destination = _parse_currency_code(target)
     if destination is None:
         validation.errors.append(
-            "Convert destination must be formatted as CASH[CCY]."
+            "Convert destination must be a three-letter currency code."
+        )
+        return
+    if destination == currency:
+        validation.errors.append(
+            "Convert destination must differ from the source currency."
         )
         return
     cash_by_currency = _apply_pending_trades_to_cash(
@@ -482,8 +487,8 @@ def _parse_money(
     return amount, currency
 
 
-def _parse_cash_destination(value: str) -> Optional[str]:
-    match = re.fullmatch(r"CASH\[[A-Z]{3}\]", value.strip().upper())
+def _parse_currency_code(value: str) -> Optional[str]:
+    match = re.fullmatch(r"[A-Z]{3}", value.strip().upper())
     if not match:
         return None
     return match.group(0)

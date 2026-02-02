@@ -170,14 +170,14 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_convert_action_checks_cash(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$500 (USD)", "to": "CASH[AUD]"}},
+                {"convert": {"amount": "$500 (USD)", "to": "AUD"}},
             ]
         }
         actions = plan_actions(tol_doc)
         validation = validate_action_with_broker(actions[0], FakeGateway("paper"))
 
         self.assertFalse(validation.errors)
-        expected = "Convert $500 (USD) to CASH[AUD]."
+        expected = "Convert $500 (USD) to AUD."
         self.assertTrue(
             any(expected in msg for msg in validation.messages)
         )
@@ -185,7 +185,18 @@ class TestBrokerDryRun(unittest.TestCase):
     def test_convert_action_insufficient_cash(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$2,000 (USD)", "to": "CASH[AUD]"}},
+                {"convert": {"amount": "$2,000 (USD)", "to": "AUD"}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        validation = validate_action_with_broker(actions[0], FakeGateway("paper"))
+
+        self.assertTrue(validation.errors)
+
+    def test_convert_action_same_currency_invalid(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"convert": {"amount": "$25 (USD)", "to": "USD"}},
             ]
         }
         actions = plan_actions(tol_doc)

@@ -71,16 +71,15 @@ Each action (A) in D.actions is defined as a mapping with the following fields:
 
 Each action executes at most once.
 
-For CONVERT actions, the `to` field replaces `symbol` for identification and
-does not refer to a tradable instrument.
+CONVERT actions are not referenceable as dependencies and do not require a
+derived identifier; implementations MAY assign an internal identifier for
+reporting purposes.
 
 ### 4.3 Derived Action Identifier
 
 Each action has a derived identifier:
 
     id(a) = lower(type) ∘ upper(symbol)
-
-For CONVERT actions, `symbol` is the `to` cash destination.
 
 This identifier is used for dependency resolution.
 
@@ -179,11 +178,11 @@ or TARGET action.
 The value of `using` MUST be a non-empty set of sources.
 
 Each source MUST be one of:
-- `CASH[<currency>]` (e.g. CASH[USD])
+- `CASH (<currency>)` (e.g. CASH (USD))
 - one of TICKERS ([Section 4.4](#44-instruments-and-tickers)) (e.g. VOO.NYSE)
 - a derived identifier of a SELL action (e.g. sellTSLA.NASDAQ)
 
-If omitted, the default value of `using` is `[ CASH[<default_currency>] ]`,
+If omitted, the default value of `using` is `[ CASH (<default_currency>) ]`,
 where `default_currency` is supplied by the execution environment or
 configuration.
 
@@ -197,9 +196,9 @@ It MUST be a monetary quantity as defined in [Section 4.5.1.1](#4511-quantity).
 
 ##### 4.5.1.4 to
 
-The **to** parameter specifies the destination cash balance for a conversion.
+The **to** parameter specifies the destination currency code for a conversion.
 
-It MUST be a cash source formatted as `CASH[<currency>]`.
+It MUST be a three-letter currency code (e.g. AUD).
 
 ##### 4.5.3.3 percent
 
@@ -267,7 +266,8 @@ At runtime:
 - A TARGET action is feasible only if the required implicit BUY and/or
   SELL actions are feasible when evaluated.
 - A CONVERT action is feasible only if the source currency cash balance
-  includes the specified amount.
+  includes the specified amount, and the destination currency is different
+  from the source currency.
 
 Insufficient holdings, insufficient funds, or invalid instruments are
 runtime errors and MUST be reported as execution failures.

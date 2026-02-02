@@ -62,7 +62,7 @@ class TestPortfolioDryRun(unittest.TestCase):
                     "buy": {
                         "symbol": "MSFT.NASDAQ",
                         "quantity": 5,
-                        "using": ["CASH[USD]"],
+                        "using": ["CASH (USD)"],
                     }
                 },
             ]
@@ -95,7 +95,7 @@ class TestPortfolioDryRun(unittest.TestCase):
                     "buy": {
                         "symbol": "TSLA.NASDAQ",
                         "quantity": 1.0,
-                        "using": ["CASH[USD]"],
+                        "using": ["CASH (USD)"],
                     }
                 },
             ]
@@ -129,7 +129,7 @@ class TestPortfolioDryRun(unittest.TestCase):
                     "target": {
                         "symbol": "AAPL.NASDAQ",
                         "percent": 75,
-                        "using": ["CASH[USD]", "AAPL.NASDAQ"],
+                        "using": ["CASH (USD)", "AAPL.NASDAQ"],
                     }
                 }
             ]
@@ -196,7 +196,7 @@ class TestPortfolioDryRun(unittest.TestCase):
     def test_convert_action_reports_message(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$1,000 (USD)", "to": "CASH[AUD]"}},
+                {"convert": {"amount": "$1,000 (USD)", "to": "AUD"}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -204,10 +204,22 @@ class TestPortfolioDryRun(unittest.TestCase):
 
         evaluations = evaluate_actions(actions, snapshot)
         self.assertFalse(evaluations[0].errors)
-        expected = "Convert $1,000 (USD) to CASH[AUD]."
+        expected = "Convert $1,000 (USD) to AUD."
         self.assertTrue(
             any(expected in msg for msg in evaluations[0].messages)
         )
+
+    def test_convert_action_same_currency_invalid(self) -> None:
+        tol_doc = {
+            "actions": [
+                {"convert": {"amount": "$10 (USD)", "to": "USD"}},
+            ]
+        }
+        actions = plan_actions(tol_doc)
+        snapshot = build_snapshot({"USD": Decimal("1000")}, [])
+
+        evaluations = evaluate_actions(actions, snapshot)
+        self.assertTrue(evaluations[0].errors)
 
     def test_pending_buy_reserves_cash(self) -> None:
         pending = normalize_pending_trades(
@@ -253,7 +265,7 @@ class TestPortfolioDryRun(unittest.TestCase):
                     "buy": {
                         "symbol": "AAPL.NASDAQ",
                         "quantity": 10,
-                        "using": ["CASH[USD]"],
+                        "using": ["CASH (USD)"],
                     }
                 },
             ]
@@ -299,7 +311,7 @@ class TestPortfolioDryRun(unittest.TestCase):
                     "target": {
                         "symbol": "TSLA.NASDAQ",
                         "percent": 10,
-                        "using": ["CASH[USD]", "NVDA.NASDAQ"],
+                        "using": ["CASH (USD)", "NVDA.NASDAQ"],
                     }
                 }
             ]

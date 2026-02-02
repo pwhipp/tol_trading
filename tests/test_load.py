@@ -106,7 +106,7 @@ def test_load_normalizes_using_sources() -> None:
       "buy": {
         "symbol": "TSM",
         "quantity": "50%",
-        "using": ["proceeds from VOO.NYSE", "CASH[usd]"]
+        "using": ["proceeds from VOO.NYSE", "CASH (usd)"]
       }
     }
   ]
@@ -115,7 +115,7 @@ def test_load_normalizes_using_sources() -> None:
     tol_doc = load_tol_text(source)
     using = tol_doc["actions"][0]["buy"]["using"]
 
-    assert using == ["sellVOO.NYSE", "CASH[USD]"]
+    assert using == ["sellVOO.NYSE", "CASH (USD)"]
 
 
 def test_load_normalizes_money_quantity() -> None:

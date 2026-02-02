@@ -85,9 +85,13 @@ def _normalize_using_source(value: Any) -> Any:
             symbol = normalized[len(prefix):].strip().upper()
             if symbol:
                 return f"sell{symbol}"
-    cash_match = re.fullmatch(r"cash\[\s*([A-Za-z]{3})\s*\]", normalized, re.IGNORECASE)
+    cash_match = re.fullmatch(
+        r"cash\s*\(\s*([A-Za-z]{3})\s*\)",
+        normalized,
+        re.IGNORECASE,
+    )
     if cash_match:
-        return f"CASH[{cash_match.group(1).upper()}]"
+        return f"CASH ({cash_match.group(1).upper()})"
     return normalized
 
 
