@@ -14,8 +14,8 @@ class PlannedAction:
     using_classified: List[Tuple[str, str]] = None
     derived_id: str = ""
     depends_on: List[str] = None
-    amount: Optional[str] = None
-    to: Optional[str] = None
+    from_currency: Optional[str] = None
+    to_currency: Optional[str] = None
 
 
 def derive_action_id(action_type: str, symbol: str) -> str:
@@ -32,14 +32,14 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
 
         action_type, body = next(iter(action_entry.items()))
         symbol = body.get("symbol")
-        if action_type == "convert":
-            symbol = body.get("to")
+        if action_type == "fx":
+            symbol = None
 
-        if not symbol:
+        if action_type != "fx" and not symbol:
             raise ValueError(f"{action_type} action at index {idx} missing symbol")
 
-        if action_type == "convert":
-            derived_id = f"convert{idx + 1}"
+        if action_type == "fx":
+            derived_id = f"fx{idx + 1}"
         else:
             derived_id = derive_action_id(action_type, symbol)
 
@@ -56,25 +56,25 @@ def plan_actions(tol_doc: dict) -> List[PlannedAction]:
             using = [f"CASH ({_default_currency(tol_doc)})"]
         elif using is None:
             using = []
-        if action_type == "convert":
+        if action_type == "fx":
             using = []
 
         action = PlannedAction(
             index=idx,
             action_type=action_type,
-            symbol=symbol,
+            symbol=symbol or "",
             quantity=body.get("quantity"),
             percent=body.get("percent"),
             using=using,
             derived_id=derived_id,
             depends_on=[],
-            amount=body.get("amount"),
-            to=body.get("to"),
+            from_currency=body.get("from"),
+            to_currency=body.get("to"),
         )
 
         actions.append(action)
 
-    id_map = {a.derived_id: a for a in actions if a.action_type != "convert"}
+    id_map = {a.derived_id: a for a in actions if a.action_type != "fx"}
     action_ids = set(id_map.keys())
 
     for action in actions:

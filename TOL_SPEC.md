@@ -61,7 +61,7 @@ Each action (A) in D.actions is defined as a mapping with the following fields:
 
 ```
     A = {
-        [action_type ∈ {sell, buy, target, convert}]:
+        [action_type ∈ {sell, buy, target, fx}]:
             {
                 symbol: ∈ TICKERS,
                 *parameters: defined by action type below
@@ -71,7 +71,7 @@ Each action (A) in D.actions is defined as a mapping with the following fields:
 
 Each action executes at most once.
 
-CONVERT actions are not referenceable as dependencies and do not require a
+FX actions are not referenceable as dependencies and do not require a
 derived identifier; implementations MAY assign an internal identifier for
 reporting purposes.
 
@@ -138,9 +138,9 @@ when ingesting user input. Generated TOL documents MUST remain explicit.
 
   parameters = {percent, using}
 
-- **convert**
+- **fx**
 
-  parameters = {amount, to}
+  parameters = {from, to, quantity}
 
 ### 4.5.1 Action Parameter Definitions
 
@@ -188,17 +188,22 @@ configuration.
 
 The order of sources in `using` is not significant.
 
-##### 4.5.1.3 amount
+##### 4.5.1.3 from
 
-The **amount** parameter specifies a monetary quantity for a conversion.
+The **from** parameter specifies the source currency code for an FX conversion.
 
-It MUST be a monetary quantity as defined in [Section 4.5.1.1](#4511-quantity).
+It MUST be a three-letter currency code (e.g. USD).
 
 ##### 4.5.1.4 to
 
-The **to** parameter specifies the destination currency code for a conversion.
+The **to** parameter specifies the destination currency code for an FX conversion.
 
 It MUST be a three-letter currency code (e.g. AUD).
+
+##### 4.5.1.5 quantity
+
+For FX actions, **quantity** has the same meaning as defined in
+[Section 4.5.1.1](#4511-quantity).
 
 ##### 4.5.3.3 percent
 
@@ -237,7 +242,7 @@ Documents that are not well-formed MUST be rejected prior to execution.
 Actions form a directed acyclic graph (DAG).
 
 - SELL actions introduce no dependencies.
-- CONVERT actions introduce no dependencies.
+- FX actions introduce no dependencies.
 - BUY and TARGET actions depend on all referenced sources.
 - Dependencies are resolved implicitly; no explicit dependency syntax exists.
 
@@ -265,7 +270,7 @@ At runtime:
   value from the specified `using` sources.
 - A TARGET action is feasible only if the required implicit BUY and/or
   SELL actions are feasible when evaluated.
-- A CONVERT action is feasible only if the source currency cash balance
+- An FX action is feasible only if the source currency cash balance
   includes the specified amount, and the destination currency is different
   from the source currency.
 

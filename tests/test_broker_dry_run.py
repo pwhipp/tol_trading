@@ -167,25 +167,25 @@ class TestBrokerDryRun(unittest.TestCase):
             any("Pending trade overlap" in msg for msg in validation.warnings)
         )
 
-    def test_convert_action_checks_cash(self) -> None:
+    def test_fx_action_checks_cash(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$500 (USD)", "to": "AUD"}},
+                {"fx": {"from": "USD", "to": "AUD", "quantity": "$500 (USD)"}},
             ]
         }
         actions = plan_actions(tol_doc)
         validation = validate_action_with_broker(actions[0], FakeGateway("paper"))
 
         self.assertFalse(validation.errors)
-        expected = "Convert $500 (USD) to AUD."
+        expected = "Convert 500.00 USD to AUD."
         self.assertTrue(
             any(expected in msg for msg in validation.messages)
         )
 
-    def test_convert_action_insufficient_cash(self) -> None:
+    def test_fx_action_insufficient_cash(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$2,000 (USD)", "to": "AUD"}},
+                {"fx": {"from": "USD", "to": "AUD", "quantity": "$2,000 (USD)"}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -193,10 +193,10 @@ class TestBrokerDryRun(unittest.TestCase):
 
         self.assertTrue(validation.errors)
 
-    def test_convert_action_same_currency_invalid(self) -> None:
+    def test_fx_action_same_currency_invalid(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$25 (USD)", "to": "USD"}},
+                {"fx": {"from": "USD", "to": "USD", "quantity": "$25 (USD)"}},
             ]
         }
         actions = plan_actions(tol_doc)

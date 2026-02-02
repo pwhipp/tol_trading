@@ -114,16 +114,20 @@
       }
     },
 
-    "convertAction": {
+    "fxAction": {
       "type": "object",
-      "required": ["amount", "to"],
+      "required": ["from", "to", "quantity"],
       "additionalProperties": false,
       "properties": {
-        "amount": { "$ref": "#/$defs/money" },
+        "from": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
         "to": {
           "type": "string",
           "pattern": "^[A-Z]{3}$"
-        }
+        },
+        "quantity": { "$ref": "#/$defs/quantity" }
       }
     },
 
@@ -134,7 +138,7 @@
         { "required": ["sell"],   "properties": { "sell":   { "$ref": "#/$defs/sellAction" } } },
         { "required": ["buy"],    "properties": { "buy":    { "$ref": "#/$defs/buyAction" } } },
         { "required": ["target"], "properties": { "target": { "$ref": "#/$defs/targetAction" } } },
-        { "required": ["convert"], "properties": { "convert": { "$ref": "#/$defs/convertAction" } } }
+        { "required": ["fx"], "properties": { "fx": { "$ref": "#/$defs/fxAction" } } }
       ]
     }
   }

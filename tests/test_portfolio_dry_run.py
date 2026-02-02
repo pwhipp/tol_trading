@@ -193,10 +193,10 @@ class TestPortfolioDryRun(unittest.TestCase):
             any("Pending trade overlap" in msg for msg in evaluations[0].warnings)
         )
 
-    def test_convert_action_reports_message(self) -> None:
+    def test_fx_action_reports_message(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$1,000 (USD)", "to": "AUD"}},
+                {"fx": {"from": "USD", "to": "AUD", "quantity": "$1,000 (USD)"}},
             ]
         }
         actions = plan_actions(tol_doc)
@@ -204,15 +204,15 @@ class TestPortfolioDryRun(unittest.TestCase):
 
         evaluations = evaluate_actions(actions, snapshot)
         self.assertFalse(evaluations[0].errors)
-        expected = "Convert $1,000 (USD) to AUD."
+        expected = "Convert 1,000.00 USD to AUD."
         self.assertTrue(
             any(expected in msg for msg in evaluations[0].messages)
         )
 
-    def test_convert_action_same_currency_invalid(self) -> None:
+    def test_fx_action_same_currency_invalid(self) -> None:
         tol_doc = {
             "actions": [
-                {"convert": {"amount": "$10 (USD)", "to": "USD"}},
+                {"fx": {"from": "USD", "to": "USD", "quantity": "$10 (USD)"}},
             ]
         }
         actions = plan_actions(tol_doc)

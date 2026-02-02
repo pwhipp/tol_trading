@@ -44,6 +44,24 @@ def test_load_converts_string_integer(tmp_path: Path) -> None:
     assert tol_doc["actions"][0]["buy"]["quantity"] == 100
 
 
+def test_load_accepts_comma_delimited_integer(tmp_path: Path) -> None:
+    tol_file = tmp_path / "example.json"
+    tol_file.write_text(
+        """
+{
+  "version": 1,
+  "actions": [
+    {"buy": {"symbol": "TSLA.NASDAQ", "quantity": "1,000"}}
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    tol_doc = load_tol(tol_file)
+    assert tol_doc["actions"][0]["buy"]["quantity"] == 1000
+
+
 def test_load_rejects_float_greater_than_one(tmp_path: Path) -> None:
     tol_file = tmp_path / "example.json"
     tol_file.write_text(

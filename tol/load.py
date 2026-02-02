@@ -51,14 +51,12 @@ def _normalize_action(action: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(body, dict):
         return action
 
-    if "quantity" in body or "percent" in body or "amount" in body:
+    if "quantity" in body or "percent" in body:
         body = dict(body)
         if "quantity" in body:
             body["quantity"] = _normalize_quantity(body["quantity"])
         if "percent" in body:
             body["percent"] = _normalize_percent(body["percent"])
-        if "amount" in body:
-            body["amount"] = _normalize_quantity(body["amount"])
     if "using" in body:
         body = dict(body)
         body["using"] = _normalize_using(body["using"])
@@ -134,7 +132,7 @@ def _normalize_quantity(value: Any) -> Any:
                 return "ALL"
             return _format_percent(percent_value)
         try:
-            return int(upper)
+            return int(upper.replace(",", ""))
         except ValueError as exc:
             raise ValueError(
                 f"Quantity string must be ALL, percent, or integer: {value}"
@@ -205,7 +203,7 @@ def _normalize_money_string(value: str) -> str | None:
         ) from exc
     if amount <= 0:
         raise ValueError("Monetary quantity must be greater than 0.")
-    normalized = f"{amount:.2f}".rstrip("0").rstrip(".")
+    normalized = f"{amount:,.2f}".rstrip("0").rstrip(".")
     return f"{symbol}{normalized} ({currency})"
 
 

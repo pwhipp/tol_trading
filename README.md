@@ -104,7 +104,7 @@ This expresses intent clearly:
 Cash sources are always explicit about currency (e.g. `CASH (USD)`), and cash
 amounts include both a currency symbol and code (e.g. `$1,000 (USD)`).
 
-Conversions between cash currencies are expressed with `convert` actions:
+Conversions between cash currencies are expressed with `fx` actions:
 
 ```yaml
 version: 1
@@ -113,9 +113,10 @@ settings:
   mode: paper
 
 actions:
-  - convert:
-      amount: $1,000 (USD)
+  - fx:
+      from: USD
       to: AUD
+      quantity: $1,000 (USD)
 ```
 
 When generating TOL from natural language, the configuration can supply
