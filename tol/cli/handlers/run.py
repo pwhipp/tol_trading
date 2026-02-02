@@ -1,7 +1,6 @@
 import sys
 
 from decimal import Decimal, InvalidOperation
-from typing import Any
 
 
 def handle_run(args) -> None:
@@ -20,11 +19,7 @@ def handle_run(args) -> None:
         sys.exit(1)
 
     tol_doc = load_tol_text(tol_text)
-    try:
-        mode = _extract_mode(tol_doc)
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        sys.exit(1)
+    mode = tol_doc["mode"]
 
     print("TOL input       : stdin")
     print(f"Execution mode  : {mode}")
@@ -155,14 +150,3 @@ def _format_quantity_value(value: object) -> str:
         return f"{numeric:,.0f}"
     return f"{numeric:,.4f}".rstrip("0").rstrip(".")
 
-
-def _extract_mode(tol_doc: dict[str, Any]) -> str:
-    mode = tol_doc.get("mode")
-    if mode is None:
-        raise ValueError("TOL document missing required 'mode'.")
-    if not isinstance(mode, str):
-        raise ValueError("TOL document 'mode' must be a string.")
-    normalized = mode.strip().lower()
-    if normalized not in {"paper", "live"}:
-        raise ValueError("TOL document 'mode' must be 'paper' or 'live'.")
-    return normalized

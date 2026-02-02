@@ -9,11 +9,13 @@ import json
 
 def load_tol(path: Path) -> dict[str, Any]:
     tol_doc = _read_tol_file(path)
+    check_tol_syntax_and_static_semantics(tol_doc)
     return normalize_tol_document(tol_doc)
 
 
 def load_tol_text(text: str) -> dict[str, Any]:
     tol_doc = _read_tol_text(text)
+    check_tol_syntax_and_static_semantics(tol_doc)
     return normalize_tol_document(tol_doc)
 
 
@@ -26,6 +28,30 @@ def normalize_tol_document(tol_doc: dict[str, Any] | None) -> dict[str, Any]:
         tol_doc["actions"] = [_normalize_action(action) for action in actions]
 
     return tol_doc
+
+
+def check_tol_syntax_and_static_semantics(tol_doc: dict[str, Any] | None) -> None:
+    if not isinstance(tol_doc, dict):
+        raise ValueError("TOL document must be a mapping.")
+
+    if "version" not in tol_doc:
+        raise ValueError("TOL document missing required 'version'.")
+    if not isinstance(tol_doc["version"], int):
+        raise ValueError("TOL document 'version' must be an integer.")
+
+    if "mode" not in tol_doc:
+        raise ValueError("TOL document missing required 'mode'.")
+    mode = tol_doc["mode"]
+    if not isinstance(mode, str):
+        raise ValueError("TOL document 'mode' must be a string.")
+    normalized_mode = mode.strip().lower()
+    if normalized_mode not in {"paper", "live"}:
+        raise ValueError("TOL document 'mode' must be 'paper' or 'live'.")
+    tol_doc["mode"] = normalized_mode
+
+    actions = tol_doc.get("actions")
+    if not isinstance(actions, list):
+        raise ValueError("TOL document 'actions' must be a list.")
 
 
 def dump_tol(tol_doc: dict[str, Any]) -> str:

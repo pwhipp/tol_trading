@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from tol.load import dump_tol, load_tol, load_tol_text
+from tol.load import (
+    check_tol_syntax_and_static_semantics,
+    dump_tol,
+    load_tol,
+    load_tol_text,
+)
 
 
 def test_load_converts_all_and_percent(tmp_path: Path) -> None:
@@ -11,6 +16,7 @@ def test_load_converts_all_and_percent(tmp_path: Path) -> None:
         """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {"buy": {"symbol": "TSLA.NASDAQ", "quantity": "ALL"}},
     {"sell": {"symbol": "NVDA.NASDAQ", "quantity": "25%"}}
@@ -32,6 +38,7 @@ def test_load_converts_string_integer(tmp_path: Path) -> None:
         """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {"buy": {"symbol": "TSLA.NASDAQ", "quantity": "100"}}
   ]
@@ -50,6 +57,7 @@ def test_load_accepts_comma_delimited_integer(tmp_path: Path) -> None:
         """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {"buy": {"symbol": "TSLA.NASDAQ", "quantity": "1,000"}}
   ]
@@ -68,6 +76,7 @@ def test_load_rejects_float_greater_than_one(tmp_path: Path) -> None:
         """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {"buy": {"symbol": "TSLA.NASDAQ", "quantity": 1.5}}
   ]
@@ -86,6 +95,7 @@ def test_load_parses_target_percent_string(tmp_path: Path) -> None:
         """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {"target": {"symbol": "AAPL.NASDAQ", "percent": "25%"}}
   ]
@@ -102,6 +112,7 @@ def test_load_from_text_and_dump_round_trip() -> None:
     source = """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {"sell": {"symbol": "NVDA.NASDAQ", "quantity": "50%"}}
   ]
@@ -119,6 +130,7 @@ def test_load_normalizes_using_sources() -> None:
     source = """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {
       "buy": {
@@ -140,6 +152,7 @@ def test_load_normalizes_money_quantity() -> None:
     source = """
 {
   "version": 1,
+  "mode": "paper",
   "actions": [
     {"buy": {"symbol": "AAPL.NASDAQ", "quantity": "$50.00 (USD)"}}
   ]
@@ -147,3 +160,15 @@ def test_load_normalizes_money_quantity() -> None:
 """
     tol_doc = load_tol_text(source)
     assert tol_doc["actions"][0]["buy"]["quantity"] == "$50 (USD)"
+
+
+def test_check_requires_mode() -> None:
+    with pytest.raises(ValueError):
+        check_tol_syntax_and_static_semantics({"version": 1, "actions": []})
+
+
+def test_check_rejects_invalid_mode() -> None:
+    with pytest.raises(ValueError):
+        check_tol_syntax_and_static_semantics(
+            {"version": 1, "mode": "sandbox", "actions": []}
+        )
