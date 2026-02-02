@@ -2,7 +2,6 @@ version: 1
 
 broker:
   mode: paper
-  currency: USD
 
 settings:
   slippage: 0.005        # 0.5%
@@ -10,6 +9,11 @@ settings:
 
 actions:
   - buy:
-      symbol: TSLA
-      using: [CASH]
+      symbol: TSLA.NASDAQ
+      using: [CASH (USD)]
       quantity: ALL
+
+  - fx:
+      from: USD
+      to: AUD
+      quantity: $1,000 (USD)

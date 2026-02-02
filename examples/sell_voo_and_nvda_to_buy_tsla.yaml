@@ -2,7 +2,6 @@ version: 1
 
 broker:
   mode: paper
-  currency: USD
 
 settings:
   slippage: 0.005        # 0.5%
@@ -10,14 +9,14 @@ settings:
 
 actions:
   - sell:
-      symbol: VOO
+      symbol: VOO.NYSE
       quantity: 100
 
   - sell:
-      symbol: NVDA
+      symbol: NVDA.NASDAQ
       quantity: 100
 
   - buy:
-      symbol: TSLA
-      using: [sellVOO, sellNVDA]
+      symbol: TSLA.NASDAQ
+      using: [sellVOO.NYSE, sellNVDA.NASDAQ]
       quantity: ALL

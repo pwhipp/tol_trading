@@ -3,6 +3,8 @@ from decimal import Decimal
 from collections import defaultdict
 from ib_insync import IB, MarketOrder, Stock
 
+from tol.exchange import resolve_exchange_currency
+
 
 class IBKRGateway:
     def __init__(self, mode: str):
@@ -36,8 +38,12 @@ class IBKRGateway:
         results = []
 
         for p in self.ib.portfolio():
+            exchange = _select_exchange(
+                getattr(p.contract, "primaryExchange", None),
+                getattr(p.contract, "exchange", None),
+            )
             results.append({
-                "symbol": p.contract.symbol,
+                "symbol": _format_ticker(p.contract.symbol, exchange),
                 "quantity": Decimal(str(p.position)),
                 "market_value": Decimal(str(p.marketValue)),
                 "currency": p.contract.currency,
@@ -73,9 +79,13 @@ class IBKRGateway:
             limit_price = self._safe_decimal(getattr(order, "lmtPrice", None))
             if limit_price is not None and limit_price <= 0:
                 limit_price = None
+            exchange = _select_exchange(
+                getattr(contract, "primaryExchange", None),
+                getattr(contract, "exchange", None),
+            )
             trades.append(
                 {
-                    "symbol": getattr(contract, "symbol", ""),
+                    "symbol": _format_ticker(getattr(contract, "symbol", ""), exchange),
                     "action_type": action_type,
                     "quantity": quantity,
                     "status": status or "Unknown",
@@ -93,7 +103,10 @@ class IBKRGateway:
         currency: str = "USD",
         exchange: str = "SMART",
     ):
-        contract = Stock(symbol, exchange, currency)
+        base_symbol, exchange_suffix = _split_ticker(symbol)
+        resolved_exchange = exchange_suffix or exchange
+        resolved_currency = resolve_exchange_currency(resolved_exchange) or currency
+        contract = Stock(base_symbol, resolved_exchange, resolved_currency)
         contracts = self.ib.qualifyContracts(contract)
         if not contracts:
             return None
@@ -142,3 +155,26 @@ class IBKRGateway:
         if math.isnan(numeric):
             return None
         return Decimal(str(value))
+
+
+def _split_ticker(symbol: str) -> tuple[str, str | None]:
+    cleaned = symbol.strip().upper()
+    if "." in cleaned:
+        base, exchange = cleaned.rsplit(".", 1)
+        if base and exchange:
+            return base, exchange
+    return cleaned, None
+
+
+def _format_ticker(symbol: str, exchange: str | None) -> str:
+    cleaned = str(symbol).strip().upper()
+    if not exchange:
+        return cleaned
+    return f"{cleaned}.{exchange.strip().upper()}"
+
+
+def _select_exchange(primary_exchange: str | None, fallback: str | None) -> str | None:
+    for candidate in (primary_exchange, fallback):
+        if candidate and str(candidate).strip():
+            return str(candidate).strip().upper()
+    return None

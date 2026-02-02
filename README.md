@@ -51,7 +51,7 @@ TOL supports three action types:
 - **target** — express a desired portfolio allocation
 
 Each action appears **once**, executes **once**, and is uniquely identified by
-its type and symbol (e.g. `sellNVDA`, `buyTSLA`).
+its type and symbol (e.g. `sellNVDA.NASDAQ`, `buyTSLA.NASDAQ`).
 
 ---
 
@@ -83,23 +83,45 @@ settings:
 
 actions:
   - sell:
-      symbol: NVDA
+      symbol: NVDA.NASDAQ
       quantity: ALL
 
   - buy:
-      symbol: TSLA
+      symbol: TSLA.NASDAQ
       quantity: 50%
-      using: [sellNVDA]
+      using: [sellNVDA.NASDAQ]
 
   - buy:
-      symbol: VOO
+      symbol: VOO.NYSE
       quantity: 50%
-      using: [sellNVDA]
+      using: [sellNVDA.NASDAQ]
 ```
 
 This expresses intent clearly:
-- Sell NVDA
-- Split the proceeds evenly between TSLA and VOO
+- Sell NVDA on NASDAQ
+- Split the proceeds evenly between TSLA and VOO on their respective exchanges
+
+Cash sources are always explicit about currency (e.g. `CASH (USD)`), and cash
+amounts include both a currency symbol and code (e.g. `$1,000 (USD)`).
+
+Conversions between cash currencies are expressed with `fx` actions:
+
+```yaml
+version: 1
+
+settings:
+  mode: paper
+
+actions:
+  - fx:
+      from: USD
+      to: AUD
+      quantity: $1,000 (USD)
+```
+
+When generating TOL from natural language, the configuration can supply
+`default_exchange` and `default_currency` values to fill in missing exchange
+or currency information before output.
 
 ## Why TOL?
 Because complex trades deserve:

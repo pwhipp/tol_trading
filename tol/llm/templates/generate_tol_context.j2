@@ -13,3 +13,16 @@ JSON SCHEMA (authoritative):
 EXECUTION MODE (paper or live):
 
 {{ mode }}
+
+---
+
+DEFAULTS (used only when the user does not specify exchange/currency):
+
+default_exchange: {{ default_exchange or "not set" }}
+default_currency: {{ default_currency or "not set" }}
+
+---
+
+EXCHANGE SETTLEMENT CURRENCIES:
+
+{{ exchange_currencies_text }}

@@ -21,6 +21,8 @@ def test_load_settings_creates_default_file(tmp_path: Path, monkeypatch: pytest.
     assert settings.usage_log_level == "INFO"
     assert settings.api_log_path == Path("llm_api.log")
     assert settings.api_log_level == "INFO"
+    assert settings.default_exchange is None
+    assert settings.default_currency is None
 
 
 def test_set_and_get_setting_round_trip(

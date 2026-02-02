@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 import json
@@ -82,6 +83,13 @@ def _normalize_using_source(value: Any) -> Any:
             symbol = normalized[len(prefix):].strip().upper()
             if symbol:
                 return f"sell{symbol}"
+    cash_match = re.fullmatch(
+        r"cash\s*\(\s*([A-Za-z]{3})\s*\)",
+        normalized,
+        re.IGNORECASE,
+    )
+    if cash_match:
+        return f"CASH ({cash_match.group(1).upper()})"
     return normalized
 
 
@@ -124,7 +132,7 @@ def _normalize_quantity(value: Any) -> Any:
                 return "ALL"
             return _format_percent(percent_value)
         try:
-            return int(upper)
+            return int(upper.replace(",", ""))
         except ValueError as exc:
             raise ValueError(
                 f"Quantity string must be ALL, percent, or integer: {value}"
@@ -175,21 +183,28 @@ def _normalize_percent(value: Any) -> Any:
 
 def _normalize_money_string(value: str) -> str | None:
     stripped = value.strip()
-    if not stripped.startswith("$"):
+    match = re.fullmatch(
+        r"(?P<symbol>[$€£¥])\s*(?P<amount>[0-9][0-9,]*"
+        r"(?:\.[0-9]{1,2})?)\s*\((?P<ccy>[A-Za-z]{3})\)",
+        stripped,
+    )
+    if not match:
         return None
-    amount_text = stripped[1:].strip()
+    amount_text = match.group("amount").replace(",", "")
+    symbol = match.group("symbol")
+    currency = match.group("ccy").upper()
     if not amount_text:
         raise ValueError("Monetary quantity is missing a value.")
     try:
-        amount = float(amount_text.replace(",", ""))
+        amount = float(amount_text)
     except ValueError as exc:
         raise ValueError(
             f"Monetary quantity must be numeric: {value}"
         ) from exc
     if amount <= 0:
         raise ValueError("Monetary quantity must be greater than 0.")
-    normalized = f"{amount:.2f}".rstrip("0").rstrip(".")
-    return f"${normalized}"
+    normalized = f"{amount:,.2f}".rstrip("0").rstrip(".")
+    return f"{symbol}{normalized} ({currency})"
 
 
 def _format_percent(value: float) -> str:

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
+import re
 from typing import Iterable, Optional
 
 from tol.ibkr.gateway import IBKRGateway
+from tol.exchange import resolve_exchange_currency
 from tol.cli.handlers.pending_trades import (
     PendingTrade,
     format_pending_trade,
@@ -17,6 +19,7 @@ from tol.parser.planner import PlannedAction
 class QuantitySpec:
     kind: str
     value: Optional[Decimal] = None
+    currency: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -76,18 +79,23 @@ def normalize_quantity(quantity: object) -> Optional[QuantitySpec]:
             raise ValueError("Float quantity must be <= 1.0 for percentages.")
         return QuantitySpec(kind="percent", value=value)
     if isinstance(quantity, str):
-        raw = quantity.strip().upper()
-        if raw == "ALL":
+        raw = quantity.strip()
+        upper = raw.upper()
+        if upper == "ALL":
             return QuantitySpec(kind="all")
-        if raw.endswith("%"):
-            value = raw[:-1].strip()
+        if upper.endswith("%"):
+            value = upper[:-1].strip()
             if not value:
                 raise ValueError("Percent quantity is missing a value.")
             return QuantitySpec(
                 kind="percent",
                 value=_coerce_decimal(value) / Decimal("100"),
             )
-        return QuantitySpec(kind="shares", value=_coerce_decimal(raw))
+        money_match = _parse_money(raw)
+        if money_match:
+            amount, currency = money_match
+            return QuantitySpec(kind="value", value=amount, currency=currency)
+        return QuantitySpec(kind="shares", value=_coerce_decimal(upper))
     raise TypeError(f"Unsupported quantity type: {type(quantity).__name__}")
 
 
@@ -139,6 +147,7 @@ def evaluate_actions(
                 normalized_pending,
             )
         elif action.action_type == "buy":
+            _validate_using_currency(action, evaluation)
             _evaluate_buy(
                 action,
                 snapshot,
@@ -147,6 +156,7 @@ def evaluate_actions(
                 normalized_pending,
             )
         elif action.action_type == "target":
+            _validate_using_currency(action, evaluation)
             _evaluate_target(
                 action,
                 snapshot,
@@ -154,6 +164,8 @@ def evaluate_actions(
                 reservations,
                 normalized_pending,
             )
+        elif action.action_type == "fx":
+            _evaluate_fx(action, snapshot, evaluation, reservations)
         else:
             evaluation.warnings.append(
                 f"Unknown action type '{action.action_type}'."
@@ -203,7 +215,7 @@ def build_portfolio_report(
         lines.append(
             "• "
             f"{trade.action_id} {trade.action_type.upper()} "
-            f"{trade.symbol} {trade.quantity} @ "
+            f"{trade.symbol} {_format_quantity(trade.quantity)} @ "
             f"{trade.price:,.2f} {trade.currency}"
         )
     return lines
@@ -252,7 +264,7 @@ def _evaluate_sell(
     available_qty = position.quantity - reserved_qty
     if available_qty < 0:
         available_qty = Decimal("0")
-    required_qty = _resolve_quantity(quantity_spec, available_qty)
+    required_qty = _resolve_quantity(quantity_spec, available_qty, position.price)
     if required_qty is None:
         evaluation.errors.append("Unable to resolve sell quantity.")
         return
@@ -266,22 +278,29 @@ def _evaluate_sell(
         if reserved_qty > 0 and details:
             evaluation.errors.append(
                 "Requested "
-                f"{required_qty} shares exceeds available {available_qty} after "
-                f"reserving {reserved_qty} shares for pending sells: {details}."
+                f"{_format_quantity(required_qty)} shares exceeds available "
+                f"{_format_quantity(available_qty)} after reserving "
+                f"{_format_quantity(reserved_qty)} shares for pending sells: "
+                f"{details}."
             )
         elif reserved_qty > 0:
             evaluation.errors.append(
                 "Requested "
-                f"{required_qty} shares exceeds available {available_qty} after "
-                f"reserving {reserved_qty} shares for pending sells."
+                f"{_format_quantity(required_qty)} shares exceeds available "
+                f"{_format_quantity(available_qty)} after reserving "
+                f"{_format_quantity(reserved_qty)} shares for pending sells."
             )
         else:
             evaluation.errors.append(
-                f"Requested {required_qty} shares exceeds holding of {position.quantity}."
+                "Requested "
+                f"{_format_quantity(required_qty)} shares exceeds holding of "
+                f"{_format_quantity(position.quantity)}."
             )
     else:
         evaluation.messages.append(
-            f"Sell {required_qty} shares from {position.quantity} held."
+            "Sell "
+            f"{_format_quantity(required_qty)} shares from "
+            f"{_format_quantity(position.quantity)} held."
         )
 
     if position.price is None:
@@ -511,6 +530,7 @@ def _evaluate_target(
 def _resolve_quantity(
     quantity_spec: QuantitySpec,
     available_qty: Decimal,
+    price: Optional[Decimal],
 ) -> Optional[Decimal]:
     if quantity_spec.kind == "all":
         return available_qty
@@ -518,6 +538,12 @@ def _resolve_quantity(
         return quantity_spec.value
     if quantity_spec.kind == "percent" and quantity_spec.value is not None:
         return available_qty * quantity_spec.value
+    if (
+        quantity_spec.kind == "value"
+        and quantity_spec.value is not None
+        and price
+    ):
+        return quantity_spec.value / price
     return None
 
 
@@ -539,14 +565,96 @@ def _resolve_buy_requirements(
         if price is None:
             return None, quantity_spec.value
         return quantity_spec.value * price, quantity_spec.value
+    if quantity_spec.kind == "value" and quantity_spec.value is not None:
+        if price is None:
+            return quantity_spec.value, None
+        return quantity_spec.value, quantity_spec.value / price
     return None, None
+
+
+def _evaluate_fx(
+    action: PlannedAction,
+    snapshot: PortfolioSnapshot,
+    evaluation: ActionEvaluation,
+    reservations: "PendingTradeReservations",
+) -> None:
+    source = (action.from_currency or "").strip().upper()
+    destination = (action.to_currency or "").strip().upper()
+    if not source:
+        evaluation.errors.append("FX actions require a source currency.")
+        return
+    if not destination:
+        evaluation.errors.append("FX actions require a destination currency.")
+        return
+    if not re.fullmatch(r"[A-Z]{3}", source):
+        evaluation.errors.append("FX source must be a three-letter currency code.")
+        return
+    if not re.fullmatch(r"[A-Z]{3}", destination):
+        evaluation.errors.append("FX destination must be a three-letter currency code.")
+        return
+    if destination == source:
+        evaluation.errors.append(
+            "FX destination must differ from the source currency."
+        )
+        return
+    quantity_spec = normalize_quantity(action.quantity)
+    if quantity_spec is None:
+        evaluation.errors.append("FX actions require a quantity.")
+        return
+    cash_value = snapshot.cash_by_currency.get(source, Decimal("0"))
+    reserved_cash = reservations.cash_by_currency.get(source, Decimal("0"))
+    available = cash_value - reserved_cash
+    if available < 0:
+        available = Decimal("0")
+    if quantity_spec.kind == "all":
+        amount = available
+    elif quantity_spec.kind == "percent" and quantity_spec.value is not None:
+        amount = available * quantity_spec.value
+    elif quantity_spec.kind == "value" and quantity_spec.value is not None:
+        amount = quantity_spec.value
+        if quantity_spec.currency and quantity_spec.currency != source:
+            evaluation.errors.append(
+                "FX quantity currency must match the source currency."
+            )
+            return
+    elif quantity_spec.kind == "shares" and quantity_spec.value is not None:
+        amount = quantity_spec.value
+    else:
+        evaluation.errors.append("Unable to resolve FX quantity.")
+        return
+    if amount <= 0:
+        evaluation.errors.append("FX quantity must be positive.")
+        return
+    if amount > available:
+        evaluation.errors.append(
+            f"Insufficient {source} cash to convert {amount:,.2f}."
+        )
+        return
+    evaluation.messages.append(
+        f"Convert {amount:,.2f} {source} to {destination}."
+    )
 
 
 def _coerce_decimal(value: object) -> Decimal:
     try:
+        if isinstance(value, str):
+            value = value.replace(",", "")
         return Decimal(str(value))
     except (InvalidOperation, ValueError) as exc:
         raise ValueError(f"Invalid numeric value: {value}") from exc
+
+
+def _parse_money(value: str) -> Optional[tuple[Decimal, str]]:
+    match = re.fullmatch(
+        r"(?P<symbol>[$€£¥])\s*(?P<amount>[0-9][0-9,]*"
+        r"(?:\.[0-9]{1,2})?)\s*\((?P<ccy>[A-Za-z]{3})\)",
+        value.strip(),
+    )
+    if not match:
+        return None
+    amount_text = match.group("amount").replace(",", "")
+    currency = match.group("ccy").upper()
+    return _coerce_decimal(amount_text), currency
 
 
 def _resolve_expected_currency(
@@ -665,6 +773,51 @@ def _append_warning(
     return extra
 
 
+def _format_quantity(value: Decimal) -> str:
+    if value == value.to_integral_value():
+        return f"{value:,.0f}"
+    return f"{value:,.4f}".rstrip("0").rstrip(".")
+
+
+def _validate_using_currency(
+    action: PlannedAction,
+    evaluation: ActionEvaluation,
+) -> None:
+    if action.action_type not in {"buy", "target"}:
+        return
+    expected_currency = _resolve_exchange_currency(action.symbol)
+    if not expected_currency:
+        return
+    cash_currencies = [
+        currency
+        for source, source_type in action.using_classified or []
+        if source_type == "cash"
+        for currency in [_extract_cash_currency(source)]
+        if currency
+    ]
+    for currency in cash_currencies:
+        if currency != expected_currency:
+            evaluation.errors.append(
+                "Using cash in "
+                f"{currency} does not match exchange currency {expected_currency}."
+            )
+            return
+
+
+def _extract_cash_currency(source: str) -> Optional[str]:
+    match = re.fullmatch(r"CASH \(([A-Z]{3})\)", source)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def _resolve_exchange_currency(symbol: str) -> Optional[str]:
+    if "." not in symbol:
+        return None
+    _, exchange = symbol.rsplit(".", 1)
+    return resolve_exchange_currency(exchange)
+
+
 def _describe_pending_trades(
     pending_trades: list[PendingTrade],
     symbol: Optional[str] = None,
@@ -684,6 +837,8 @@ def _describe_pending_trades(
 
 
 def _action_uses_cash(action: PlannedAction) -> bool:
+    if action.action_type == "fx":
+        return True
     for _, source_type in action.using_classified or []:
         if source_type == "cash":
             return True
@@ -696,6 +851,8 @@ def _append_pending_trade_warnings(
     pending_trades: list[PendingTrade],
 ) -> None:
     if not pending_trades:
+        return
+    if action.action_type == "fx":
         return
     action_symbol = str(action.symbol).strip().upper()
     conflicts = [

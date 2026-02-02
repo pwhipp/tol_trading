@@ -85,7 +85,11 @@ class ChatGptClient:
         mode_override: str | None = None,
     ) -> LlmDocumentResponse:
         mode = mode_override or self._settings.mode
-        context_prompt = _generate_context_prompt(mode)
+        context_prompt = _generate_context_prompt(
+            mode,
+            self._settings.default_exchange,
+            self._settings.default_currency,
+        )
         user_prompt = _generate_user_prompt(prompt_text)
         message = self._chat(
             messages=[
@@ -338,13 +342,26 @@ def _load_tol_spec_text() -> str:
 
 
 @lru_cache
-def _generate_context_prompt(mode: str) -> str:
+def _generate_context_prompt(
+    mode: str,
+    default_exchange: str | None,
+    default_currency: str | None,
+) -> str:
     return _render_prompt(
         "generate_tol_context.j2",
         spec_text=_load_tol_spec_text(),
         schema_json=_load_tol_schema_text(),
         mode=mode,
+        default_exchange=default_exchange,
+        default_currency=default_currency,
+        exchange_currencies_text=_load_exchange_currencies_text(),
     )
+
+
+@lru_cache
+def _load_exchange_currencies_text() -> str:
+    currencies_path = Path(__file__).resolve().parents[2] / "EXCHANGE_CURRENCIES.yaml"
+    return currencies_path.read_text(encoding="utf-8").strip()
 
 
 def _generate_user_prompt(user_request: str) -> str:

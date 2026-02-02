@@ -1,21 +1,20 @@
 broker:
   mode: paper
-  currency: USD
 
 actions:
   - buy:
-      symbol: UMC
+      symbol: UMC.NYSE
       quantity: 100
-      using: [CASH, NVDA]
+      using: [CASH (USD), NVDA.NASDAQ]
   - buy:
-      symbol: ZSL
+      symbol: ZSL.NYSE
       quantity: 100
-      using: [CASH, NVDA]
+      using: [CASH (USD), NVDA.NASDAQ]
   - target:
-      symbol: TSLA
+      symbol: TSLA.NASDAQ
       percent: 10%
-      using: [CASH, NVDA]
+      using: [CASH (USD), NVDA.NASDAQ]
   - target:
-      symbol: TSM
+      symbol: TSM.NYSE
       percent: 10%
-      using: [CASH, NVDA]
+      using: [CASH (USD), NVDA.NASDAQ]

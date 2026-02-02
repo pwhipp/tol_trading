@@ -1,5 +1,7 @@
 import sys
 
+from decimal import Decimal, InvalidOperation
+
 
 def handle_run(args) -> None:
     from tol.parser.dag import compute_execution_levels
@@ -103,9 +105,13 @@ def handle_run(args) -> None:
         print(f"    type        : {action.action_type}")
         print(f"    symbol      : {action.symbol}")
         if action.quantity is not None:
-            print(f"    quantity    : {action.quantity}")
+            print(f"    quantity    : {_format_quantity_value(action.quantity)}")
         if action.percent is not None:
             print(f"    percent     : {action.percent}")
+        if action.from_currency is not None:
+            print(f"    from        : {action.from_currency}")
+        if action.to_currency is not None:
+            print(f"    to          : {action.to_currency}")
         if action.using_classified:
             print("    using:")
             for source, kind in action.using_classified:
@@ -130,3 +136,15 @@ def handle_run(args) -> None:
                 for dep in action.depends_on:
                     print(f"        - {dep}")
         print()
+
+
+def _format_quantity_value(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    try:
+        numeric = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return str(value)
+    if numeric == numeric.to_integral_value():
+        return f"{numeric:,.0f}"
+    return f"{numeric:,.4f}".rstrip("0").rstrip(".")

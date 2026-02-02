@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
+import re
 from typing import Callable, Iterable, Optional, Protocol
 
 from tol.ibkr.gateway import IBKRGateway
+from tol.exchange import resolve_exchange_currency
 from tol.cli.handlers.pending_trades import (
     PendingTrade,
     format_pending_trade,
@@ -109,7 +111,7 @@ def build_broker_report(
         lines.append(
             "• "
             f"{trade.action_id} {trade.action_type.upper()} "
-            f"{trade.symbol} {trade.quantity} @ "
+            f"{trade.symbol} {_format_quantity(trade.quantity)} @ "
             f"{trade.price:,.2f} {trade.currency}"
         )
     return lines
@@ -127,6 +129,15 @@ def validate_action_with_broker(
     )
     normalized_pending = normalize_pending_trades(pending_trades)
 
+    if action.action_type == "fx":
+        _validate_fx_action(
+            action,
+            gateway,
+            normalized_pending,
+            validation,
+        )
+        return validation
+
     sanitized_symbol = _sanitize_symbol(action.symbol, validation)
     if sanitized_symbol is None:
         return validation
@@ -138,6 +149,8 @@ def validate_action_with_broker(
     _append_pending_trade_warnings(action, validation, normalized_pending)
 
     if action.action_type in {"buy", "sell"}:
+        if not _validate_using_currency(action, validation):
+            return validation
         market_snapshot = _resolve_market_snapshot(
             gateway,
             contract,
@@ -167,6 +180,8 @@ def validate_action_with_broker(
                 validation,
             )
     elif action.action_type == "target":
+        if not _validate_using_currency(action, validation):
+            return validation
         validation.warnings.append(
             "Target actions require portfolio context to derive shares."
         )
@@ -409,11 +424,211 @@ def _append_planned_trade(
     )
 
 
+def _format_quantity(value: Decimal) -> str:
+    if value == value.to_integral_value():
+        return f"{value:,.0f}"
+    return f"{value:,.4f}".rstrip("0").rstrip(".")
+
+
+def _validate_using_currency(
+    action: PlannedAction,
+    validation: BrokerValidation,
+) -> bool:
+    if action.action_type not in {"buy", "target"}:
+        return True
+    expected_currency = _resolve_exchange_currency(action.symbol)
+    if not expected_currency:
+        return True
+    cash_currencies = [
+        currency
+        for source, source_type in action.using_classified or []
+        if source_type == "cash"
+        for currency in [_extract_cash_currency(source)]
+        if currency
+    ]
+    for currency in cash_currencies:
+        if currency != expected_currency:
+            validation.errors.append(
+                "Using cash in "
+                f"{currency} does not match exchange currency {expected_currency}."
+            )
+            return False
+    return True
+
+
+def _extract_cash_currency(source: str) -> Optional[str]:
+    match = re.fullmatch(r"CASH \(([A-Z]{3})\)", source)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def _resolve_exchange_currency(symbol: str) -> Optional[str]:
+    if "." not in symbol:
+        return None
+    _, exchange = symbol.rsplit(".", 1)
+    return resolve_exchange_currency(exchange)
+
+
+def _validate_fx_action(
+    action: PlannedAction,
+    gateway: BrokerGateway,
+    pending_trades: list[PendingTrade],
+    validation: BrokerValidation,
+) -> None:
+    source = _parse_currency_code(action.from_currency)
+    destination = _parse_currency_code(action.to_currency)
+    if not source:
+        validation.errors.append("FX actions require a source currency.")
+        return
+    if not destination:
+        validation.errors.append("FX actions require a destination currency.")
+        return
+    if destination == source:
+        validation.errors.append(
+            "FX destination must differ from the source currency."
+        )
+        return
+    cash_by_currency = _apply_pending_trades_to_cash(
+        gateway.get_cash_by_currency(),
+        pending_trades,
+        validation,
+    )
+    available = cash_by_currency.get(source, Decimal("0"))
+    amount = _resolve_fx_quantity(
+        action.quantity,
+        source,
+        available,
+        validation,
+    )
+    if amount is None:
+        return
+    validation.messages.append(
+        f"Convert {amount:,.2f} {source} to {destination}."
+    )
+
+
+def _parse_money(
+    value: str,
+    validation: BrokerValidation,
+) -> Optional[tuple[Decimal, str]]:
+    match = re.fullmatch(
+        r"(?P<symbol>[$€£¥])\s*(?P<amount>[0-9][0-9,]*"
+        r"(?:\.[0-9]{1,2})?)\s*\((?P<ccy>[A-Za-z]{3})\)",
+        value.strip(),
+    )
+    if not match:
+        validation.errors.append("FX quantity must be formatted as $1,000 (USD).")
+        return None
+    amount_text = match.group("amount").replace(",", "")
+    currency = match.group("ccy").upper()
+    amount = _coerce_decimal(amount_text, validation)
+    if amount is None:
+        return None
+    if amount <= 0:
+        validation.errors.append("FX quantity must be positive.")
+        return None
+    return amount, currency
+
+
+def _parse_currency_code(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    match = re.fullmatch(r"[A-Z]{3}", value.strip().upper())
+    if not match:
+        return None
+    return match.group(0)
+
+
+def _resolve_fx_quantity(
+    quantity: object,
+    source_currency: str,
+    available_cash: Decimal,
+    validation: BrokerValidation,
+) -> Optional[Decimal]:
+    if quantity is None:
+        validation.errors.append("FX actions require a quantity.")
+        return None
+    if isinstance(quantity, str):
+        parsed = _parse_money(quantity, validation)
+        if parsed is not None:
+            amount, currency = parsed
+            if currency != source_currency:
+                validation.errors.append(
+                    "FX quantity currency must match the source currency."
+                )
+                return None
+            return _validate_fx_amount(amount, source_currency, available_cash, validation)
+        raw = quantity.strip().replace(",", "")
+        if raw.upper() == "ALL":
+            return _validate_fx_amount(
+                available_cash,
+                source_currency,
+                available_cash,
+                validation,
+            )
+        if raw.endswith("%"):
+            value = raw[:-1].strip()
+            if not value:
+                validation.errors.append("Percent quantity is missing a value.")
+                return None
+            percent = _coerce_decimal(value, validation)
+            if percent is None:
+                return None
+            amount = available_cash * (percent / Decimal("100"))
+            return _validate_fx_amount(
+                amount,
+                source_currency,
+                available_cash,
+                validation,
+            )
+        amount = _coerce_decimal(raw, validation)
+        if amount is None:
+            return None
+        return _validate_fx_amount(
+            amount,
+            source_currency,
+            available_cash,
+            validation,
+        )
+    if isinstance(quantity, (int, float, Decimal)):
+        amount = _coerce_decimal(quantity, validation)
+        if amount is None:
+            return None
+        return _validate_fx_amount(
+            amount,
+            source_currency,
+            available_cash,
+            validation,
+        )
+    validation.errors.append("Unsupported FX quantity type.")
+    return None
+
+
+def _validate_fx_amount(
+    amount: Decimal,
+    currency: str,
+    available_cash: Decimal,
+    validation: BrokerValidation,
+) -> Optional[Decimal]:
+    if amount <= 0:
+        validation.errors.append("FX quantity must be positive.")
+        return None
+    if amount > available_cash:
+        validation.errors.append(
+            f"Insufficient {currency} cash to convert {amount:,.2f}."
+        )
+        return None
+    return amount
+
+
 def _coerce_decimal(
     value: object,
     validation: BrokerValidation,
 ) -> Optional[Decimal]:
     try:
+        if isinstance(value, str):
+            value = value.replace(",", "")
         return Decimal(str(value))
     except (InvalidOperation, ValueError):
         validation.errors.append(f"Invalid numeric value: {value}.")
