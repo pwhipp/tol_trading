@@ -2,6 +2,12 @@ version: 1
 
 broker:
   mode: paper
+  execution:
+    target_percent: 1%
+    partials:
+      buy: allow
+      sell: allow
+    max_duration: 4
 
 settings:
   slippage: 0.005
