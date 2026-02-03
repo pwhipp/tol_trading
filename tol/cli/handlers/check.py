@@ -12,12 +12,14 @@ def pct(value: Decimal, total: Decimal) -> Decimal:
 
 def handle_check(args) -> None:
     from tol.cli.handlers.execution_helpers import resolve_broker
+    from tol.config import get_config
 
-    broker_api = resolve_broker(args.mode)
+    config = get_config()
+    broker_api = resolve_broker(config.mode)
 
     print("TOL Portfolio Check")
     print("----------------------------------------")
-    print(f"Trading mode: {args.mode}")
+    print(f"Trading mode: {config.mode}")
     print()
 
     snapshot = broker_api.get_portfolio_snapshot()

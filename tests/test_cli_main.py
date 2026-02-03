@@ -10,26 +10,23 @@ class TestCliMain(unittest.TestCase):
         parser = build_parser()
         args = parser.parse_args([
             "run",
-            "example.yaml",
         ])
 
         self.assertEqual(args.command, "run")
-        self.assertEqual(args.file, "example.yaml")
 
     def test_check_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["check", "--mode", "live"])
+        args = parser.parse_args(["check"])
 
         self.assertEqual(args.command, "check")
-        self.assertEqual(args.mode, "live")
 
     def test_run_command_default_dry_run(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["run", "example.yaml"])
+        args = parser.parse_args(["run"])
 
-        self.assertEqual(args.file, "example.yaml")
+        self.assertEqual(args.command, "run")
 
-    def test_run_help_mentions_file(self) -> None:
+    def test_run_help_mentions_stdin(self) -> None:
         parser = build_parser()
         subparsers_action = next(
             action
@@ -39,7 +36,7 @@ class TestCliMain(unittest.TestCase):
         run_parser = subparsers_action.choices["run"]
         help_text = run_parser.format_help()
 
-        self.assertIn("Path to the TOL document", help_text)
+        self.assertIn("usage: tol run", help_text)
 
     def test_describe_command_parsing(self) -> None:
         parser = build_parser()
@@ -51,11 +48,10 @@ class TestCliMain(unittest.TestCase):
     def test_generate_command_parsing(self) -> None:
         parser = build_parser()
         args = parser.parse_args(
-            ["generate", "--mode", "live", "--llm-model", "gpt-5", "--echo"]
+            ["generate", "--llm-model", "gpt-5", "--echo"]
         )
 
         self.assertEqual(args.command, "generate")
-        self.assertEqual(args.mode, "live")
         self.assertEqual(args.llm_model, "gpt-5")
         self.assertTrue(args.echo)
 

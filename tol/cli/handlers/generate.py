@@ -1,5 +1,6 @@
 import sys
 
+from tol.config import get_config
 from tol.load import (
     apply_tol_defaults,
     check_tol_syntax_and_static_semantics,
@@ -15,9 +16,10 @@ def handle_generate(args) -> None:
         sys.exit(1)
 
     client = ChatGptClient.from_config(model_override=args.llm_model)
+    config = get_config()
 
     try:
-        response = client.generate_tol(prompt_text, mode_override=args.mode)
+        response = client.generate_tol(prompt_text)
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -25,7 +27,7 @@ def handle_generate(args) -> None:
     for warning in response.warnings:
         print(f"WARNING: {warning}", file=sys.stderr)
 
-    document = apply_tol_defaults(response.document, mode=args.mode)
+    document = apply_tol_defaults(response.document, mode=config.mode)
     check_tol_syntax_and_static_semantics(document)
     output = dump_tol(document)
     print(output)
