@@ -204,13 +204,15 @@ class ExecutionEngine:
                 "symbol": action.symbol,
                 "quantity": float(quantity),
             }
-            broker_order_id = broker_api.submit_order(order_spec)
+            submission = broker_api.submit_order(order_spec)
+            trade_json = json.dumps(submission.trade)
             self._store.insert_order(
                 row["id"],
-                broker_order_id,
+                submission.broker_order_id,
                 "SUBMITTED",
                 float(quantity),
                 0.0,
+                trade_json,
             )
             self._store.update_action_status(row["id"], "SUBMITTED")
 

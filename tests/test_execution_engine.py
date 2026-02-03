@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import yaml
@@ -49,6 +50,11 @@ def test_partial_fills(tmp_path: Path) -> None:
     engine = ExecutionEngine(tmp_path / "engine.sqlite", broker)
     execution_id = engine.start_execution(_basic_tol_doc(), broker)
     engine.advance_execution(execution_id)
+    status = engine.get_status(execution_id)
+    trade_payload = json.loads(status.orders[0]["trade_json"])
+    assert trade_payload["order_id"] == "FB-1"
+    assert trade_payload["status"] == "SUBMITTED"
+    assert trade_payload["order_type"] == "MKT"
 
     state = _read_state(broker_state)
     order_id = next(iter(state["orders"]))

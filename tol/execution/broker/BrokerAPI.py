@@ -14,9 +14,15 @@ class OrderStatus:
     average_price: Decimal | None = None
 
 
+@dataclass(frozen=True)
+class OrderSubmission:
+    broker_order_id: str
+    trade: dict[str, Any]
+
+
 class BrokerAPI(ABC):
     @abstractmethod
-    def submit_order(self, order_spec: dict[str, Any]) -> str:
+    def submit_order(self, order_spec: dict[str, Any]) -> OrderSubmission:
         raise NotImplementedError
 
     @abstractmethod
