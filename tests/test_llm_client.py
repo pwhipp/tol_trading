@@ -1,4 +1,5 @@
 from tol.llm.client import (
+    _apply_llm_using_defaults,
     _format_api_error,
     _generate_system_message,
     _render_prompt,
@@ -46,7 +47,7 @@ def test_generate_user_prompt_includes_request() -> None:
     )
 
     assert request in prompt
-    assert "Convert the follwing request into a TOL document:" in prompt
+    assert "Convert the following request into a TOL document:" in prompt
 
 
 def test_generate_system_message_has_rules() -> None:
@@ -56,3 +57,48 @@ def test_generate_system_message_has_rules() -> None:
     assert "Output JSON only." in message["content"]
     assert '{"error": "<reason>"}' in message["content"]
     assert "do not use TARGET for proceeds allocation" in message["content"]
+    assert "must always include a non-empty 'using' list" in message["content"]
+
+
+def test_apply_llm_using_defaults_prefers_exchange_currency() -> None:
+    document = {
+        "actions": [
+            {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1}},
+        ]
+    }
+
+    updated = _apply_llm_using_defaults(
+        document,
+        default_exchange=None,
+        default_currency="EUR",
+    )
+
+    assert updated["actions"][0]["buy"]["using"] == ["CASH(USD)"]
+
+
+def test_apply_llm_using_defaults_uses_default_currency() -> None:
+    document = {"actions": [{"target": {"symbol": "FOO", "percent": "10%"}}]}
+
+    updated = _apply_llm_using_defaults(
+        document,
+        default_exchange=None,
+        default_currency="cad",
+    )
+
+    assert updated["actions"][0]["target"]["using"] == ["CASH(CAD)"]
+
+
+def test_apply_llm_using_defaults_preserves_existing_using() -> None:
+    document = {
+        "actions": [
+            {"buy": {"symbol": "AAPL.NASDAQ", "quantity": 1, "using": ["CASH(USD)"]}},
+        ]
+    }
+
+    updated = _apply_llm_using_defaults(
+        document,
+        default_exchange="NYSE",
+        default_currency="USD",
+    )
+
+    assert updated == document

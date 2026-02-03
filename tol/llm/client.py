@@ -11,6 +11,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader
 from tol.load import normalize_tol_document
 from tol.config import Config, get_config
+from tol.exchange import resolve_exchange_currency
 
 
 @dataclass
@@ -112,6 +113,11 @@ class ChatGptClient:
                 "LLM response was not valid JSON. Adjust the prompt or model."
             ) from exc
 
+        document = _apply_llm_using_defaults(
+            document,
+            default_exchange=self._settings.default_exchange,
+            default_currency=self._settings.default_currency,
+        )
         normalized = normalize_tol_document(document)
         return LlmDocumentResponse(
             document=normalized,
@@ -224,27 +230,8 @@ def _describe_system_message() -> dict[str, str]:
 
 
 def _generate_system_message() -> dict[str, str]:
-    return {
-        "role": "system",
-        "content": (
-            "You are a compiler that converts natural language trading "
-            "instructions into a TOL JSON document.\n\n"
-            "Rules:\n"
-            "- Output JSON only.\n"
-            "- The response MUST be a single JSON object matching the provided "
-            "schema.\n"
-            "- If a valid document cannot be produced, output:\n"
-            '  {"error": "<reason>"}\n'
-            "- Do NOT include explanations, markdown, or extra text."
-            "\n- Use BUY actions with quantity percentages when allocating sell "
-            "proceeds across symbols; do not use TARGET for proceeds "
-            "allocation.\n"
-            "- Use TARGET only when the user specifies desired portfolio "
-            "percent ownership.\n"
-            "- TARGET percent values must be strings with a trailing '%' "
-            "symbol (e.g., \"66%\")."
-        ),
-    }
+    prompt = _render_prompt("generate_tol_system.j2")
+    return {"role": "system", "content": prompt}
 
 
 def _context_message(content: str) -> dict[str, str]:
@@ -401,3 +388,75 @@ def _parse_log_level(level_name: str) -> int:
     upper_name = level_name.upper()
     level = logging.getLevelName(upper_name)
     return level if isinstance(level, int) else logging.INFO
+
+
+def _apply_llm_using_defaults(
+    document: dict[str, Any],
+    *,
+    default_exchange: str | None,
+    default_currency: str | None,
+) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        return document
+    actions = document.get("actions")
+    if not isinstance(actions, list):
+        return document
+    updated_actions = []
+    updated = False
+    for action in actions:
+        if not isinstance(action, dict) or len(action) != 1:
+            updated_actions.append(action)
+            continue
+        action_type, body = next(iter(action.items()))
+        if action_type not in {"buy", "target"} or not isinstance(body, dict):
+            updated_actions.append(action)
+            continue
+        if _using_has_sources(body.get("using")):
+            updated_actions.append(action)
+            continue
+        currency = _resolve_using_currency(
+            body,
+            default_exchange=default_exchange,
+            default_currency=default_currency,
+        )
+        if not currency:
+            updated_actions.append(action)
+            continue
+        updated_body = dict(body)
+        updated_body["using"] = [f"CASH({currency})"]
+        updated_actions.append({action_type: updated_body})
+        updated = True
+    if not updated:
+        return document
+    updated_doc = dict(document)
+    updated_doc["actions"] = updated_actions
+    return updated_doc
+
+
+def _using_has_sources(using: Any) -> bool:
+    if isinstance(using, list):
+        return any(_using_has_sources(item) for item in using)
+    if isinstance(using, str):
+        return bool(using.strip())
+    return False
+
+
+def _resolve_using_currency(
+    body: dict[str, Any],
+    *,
+    default_exchange: str | None,
+    default_currency: str | None,
+) -> str | None:
+    symbol = body.get("symbol")
+    if isinstance(symbol, str) and "." in symbol:
+        _, exchange = symbol.rsplit(".", 1)
+        currency = resolve_exchange_currency(exchange)
+        if currency:
+            return currency
+    if default_exchange:
+        currency = resolve_exchange_currency(default_exchange)
+        if currency:
+            return currency
+    if default_currency:
+        return default_currency.strip().upper()
+    return None
