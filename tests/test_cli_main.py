@@ -104,9 +104,7 @@ class TestCliMain(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             os.environ["XDG_CONFIG_HOME"] = temp_dir
             settings = llm_config.load_settings()
-            data_path = os.path.join(temp_dir, "data")
-            updated = llm_config.set_setting(settings, "data_path", data_path)
-            updated = llm_config.set_setting(updated, "broker", "FakeBrokerAPI")
+            updated = llm_config.set_setting(settings, "broker", "FakeBrokerAPI")
             llm_config.write_settings(updated)
             try:
                 args = build_parser().parse_args(["status"])

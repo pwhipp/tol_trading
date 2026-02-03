@@ -10,18 +10,23 @@ from tol.llm import config as llm_config
 
 
 def resolve_db_path() -> Path:
-    settings = llm_config.load_settings()
-    return settings.data_path / "tol_execution.sqlite3"
+    config_dir = llm_config.config_path().parent
+    return config_dir / "tol_execution.sqlite3"
 
 
 def resolve_broker(mode: str | None) -> BrokerAPI:
     settings = llm_config.load_settings()
     broker_name = settings.broker
-    if broker_name == "FakeBrokerAPI":
-        state_path = settings.data_path / "fake_broker_state.yaml"
-        return FakeBrokerAPI(state_path)
-    trading_mode = mode or settings.mode
-    return IBKRBrokerAPI(trading_mode)
+    config_dir = llm_config.config_path().parent
+    broker_map = {
+        "FakeBrokerAPI": lambda: FakeBrokerAPI(
+            config_dir / "fake_broker_state.yaml"
+        ),
+        "IBKRBrokerAPI": lambda: IBKRBrokerAPI(mode or settings.mode),
+    }
+    if broker_name not in broker_map:
+        raise ValueError(f"Unknown broker setting: {broker_name}")
+    return broker_map[broker_name]()
 
 
 def lookup_execution_mode(db_path: Path, execution_id: int) -> str | None:

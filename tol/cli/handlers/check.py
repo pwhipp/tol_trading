@@ -11,21 +11,17 @@ def pct(value: Decimal, total: Decimal) -> Decimal:
 
 
 def handle_check(args) -> None:
-    from tol.ibkr.gateway import IBKRGateway
+    from tol.cli.handlers.execution_helpers import resolve_broker
 
-    gw = IBKRGateway(args.mode)
+    broker_api = resolve_broker(args.mode)
 
     print("TOL Portfolio Check")
     print("----------------------------------------")
-    print(f"Mode: {args.mode}")
+    print(f"Trading mode: {args.mode}")
     print()
 
-    gw.connect()
-    try:
-        cash_by_ccy = gw.get_cash_by_currency()
-        positions = gw.get_positions()
-    finally:
-        gw.disconnect()
+    snapshot = broker_api.get_portfolio_snapshot()
+    cash_by_ccy, positions = _normalize_snapshot(snapshot)
 
     position_totals: defaultdict[str, Decimal] = defaultdict(Decimal)
     for position in positions:
@@ -73,3 +69,20 @@ def handle_check(args) -> None:
         )
 
     print("----------------------------------------")
+
+
+def _normalize_snapshot(snapshot: dict) -> tuple[dict[str, Decimal], list[dict]]:
+    cash = snapshot.get("cash")
+    positions = snapshot.get("positions")
+    if isinstance(cash, dict) and isinstance(positions, list):
+        cash_by_ccy = {
+            ccy: Decimal(str(value)) for ccy, value in cash.items()
+        }
+        return cash_by_ccy, positions
+    portfolio = snapshot.get("portfolio", {})
+    cash = portfolio.get("cash", {})
+    positions = portfolio.get("positions", [])
+    cash_by_ccy = {
+        ccy: Decimal(str(value)) for ccy, value in cash.items()
+    }
+    return cash_by_ccy, positions
