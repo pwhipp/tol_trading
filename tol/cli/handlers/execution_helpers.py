@@ -5,9 +5,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-import sqlite3
-
 from tol.execution.broker import BrokerAPI, FakeBrokerAPI, IBKRBrokerAPI
+from tol.execution.store import ExecutionStore
 
 
 def resolve_db_path() -> Path:
@@ -35,34 +34,10 @@ def lookup_execution_mode(db_path: Path, execution_id: int) -> str | None:
 
 
 def find_active_execution_id(db_path: Path) -> int | None:
-    try:
-        with _connect(db_path) as conn:
-            row = conn.execute(
-                """
-                SELECT id FROM execution
-                WHERE status IN ('RUNNING', 'SUSPENDED')
-                ORDER BY created_at ASC
-                LIMIT 1
-                """
-            ).fetchone()
-    except sqlite3.OperationalError:
-        return None
-    return int(row["id"]) if row else None
+    store = ExecutionStore(db_path)
+    return store.find_active_execution_id()
 
 
 def _load_execution(db_path: Path, execution_id: int) -> dict[str, Any] | None:
-    try:
-        with _connect(db_path) as conn:
-            row = conn.execute(
-                "SELECT * FROM execution WHERE id = ?",
-                (execution_id,),
-            ).fetchone()
-    except sqlite3.OperationalError:
-        return None
-    return dict(row) if row else None
-
-
-def _connect(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+    store = ExecutionStore(db_path)
+    return store.get_execution(execution_id)
