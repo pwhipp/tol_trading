@@ -98,14 +98,15 @@ class TestCliMain(unittest.TestCase):
         import os
         import tempfile
 
-        from tol.llm import config as llm_config
+        from tol import config as app_config
         from tol.cli.handlers.status import handle_status
 
         with tempfile.TemporaryDirectory() as temp_dir:
             os.environ["XDG_CONFIG_HOME"] = temp_dir
-            settings = llm_config.load_settings()
-            updated = llm_config.set_setting(settings, "broker", "FakeBrokerAPI")
-            llm_config.write_settings(updated)
+            app_config.get_config.cache_clear()
+            settings = app_config.get_config()
+            updated = app_config.set_setting(settings, "broker", "FakeBrokerAPI")
+            updated.save()
             try:
                 args = build_parser().parse_args(["status"])
                 handle_status(args)
