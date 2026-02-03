@@ -10,12 +10,11 @@ class TestCliMain(unittest.TestCase):
         parser = build_parser()
         args = parser.parse_args([
             "run",
-            "--dry-run",
-            "local",
+            "example.yaml",
         ])
 
         self.assertEqual(args.command, "run")
-        self.assertEqual(args.dry_run, "local")
+        self.assertEqual(args.file, "example.yaml")
 
     def test_check_command_parsing(self) -> None:
         parser = build_parser()
@@ -26,11 +25,11 @@ class TestCliMain(unittest.TestCase):
 
     def test_run_command_default_dry_run(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["run"])
+        args = parser.parse_args(["run", "example.yaml"])
 
-        self.assertEqual(args.dry_run, None)
+        self.assertEqual(args.file, "example.yaml")
 
-    def test_run_help_includes_dry_run_intentions(self) -> None:
+    def test_run_help_mentions_file(self) -> None:
         parser = build_parser()
         subparsers_action = next(
             action
@@ -40,9 +39,7 @@ class TestCliMain(unittest.TestCase):
         run_parser = subparsers_action.choices["run"]
         help_text = run_parser.format_help()
 
-        self.assertIn("validates the TOL file only", help_text)
-        self.assertIn("queries holdings and prices", help_text)
-        self.assertIn("connects to IBKR", help_text)
+        self.assertIn("Path to the TOL document", help_text)
 
     def test_describe_command_parsing(self) -> None:
         parser = build_parser()
@@ -76,6 +73,26 @@ class TestCliMain(unittest.TestCase):
 
         self.assertEqual(args.command, "test")
         self.assertTrue(args.echo)
+
+    def test_resume_command_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["resume"])
+
+        self.assertEqual(args.command, "resume")
+
+    def test_status_command_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["status", "12"])
+
+        self.assertEqual(args.command, "status")
+        self.assertEqual(args.execution_id, 12)
+
+    def test_abort_command_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["abort", "7"])
+
+        self.assertEqual(args.command, "abort")
+        self.assertEqual(args.execution_id, 7)
 
 
 if __name__ == "__main__":

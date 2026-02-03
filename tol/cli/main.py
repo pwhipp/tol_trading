@@ -4,7 +4,10 @@ from tol.cli.handlers.check import handle_check
 from tol.cli.handlers.config import handle_config
 from tol.cli.handlers.describe import handle_describe
 from tol.cli.handlers.generate import handle_generate
+from tol.cli.handlers.abort import handle_abort
+from tol.cli.handlers.resume import handle_resume
 from tol.cli.handlers.run import handle_run
+from tol.cli.handlers.status import handle_status
 from tol.cli.handlers.test import handle_test
 
 OPENAI_LLM_MODELS = (
@@ -31,22 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser(
         "run",
-        help="Run or simulate a TOL orchestration",
+        help="Run a TOL orchestration",
     )
-
-    run_parser.add_argument(
-        "--dry-run",
-        nargs="?",
-        const="portfolio",
-        choices=["local", "portfolio", "broker"],
-        help=(
-            "Perform a dry run without executing orders. "
-            "If specified without a value, defaults to 'portfolio'. "
-            "Levels: 'local' validates the TOL file only; 'portfolio' also "
-            "queries holdings and prices to compute quantities; 'broker' also "
-            "connects to IBKR to validate order parameters."
-        ),
-    )
+    run_parser.add_argument("file", help="Path to the TOL document")
 
     check_parser = subparsers.add_parser(
         "check",
@@ -133,6 +123,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Echo a confirmation message to stdout.",
     )
 
+    resume_parser = subparsers.add_parser(
+        "resume",
+        help="Resume the active execution",
+    )
+
+    status_parser = subparsers.add_parser(
+        "status",
+        help="Show execution status",
+    )
+    status_parser.add_argument(
+        "execution_id",
+        nargs="?",
+        type=int,
+        help="Execution ID (defaults to the active execution)",
+    )
+
+    abort_parser = subparsers.add_parser(
+        "abort",
+        help="Abort an execution",
+    )
+    abort_parser.add_argument(
+        "execution_id",
+        nargs="?",
+        type=int,
+        help="Execution ID (defaults to the active execution)",
+    )
+
     return parser
 
 
@@ -147,6 +164,9 @@ def main() -> None:
         "generate": handle_generate,
         "config": handle_config,
         "test": handle_test,
+        "resume": handle_resume,
+        "status": handle_status,
+        "abort": handle_abort,
     }
 
     def handle_error(args):
