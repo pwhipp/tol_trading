@@ -10,8 +10,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 from tol.load import normalize_tol_document
-from tol.llm.config import load_settings
-from tol.llm.settings import LlmSettings
+from tol.config import Config, get_config
 
 
 @dataclass
@@ -36,7 +35,7 @@ class LlmDocumentResponse:
 
 
 class ChatGptClient:
-    def __init__(self, settings: LlmSettings) -> None:
+    def __init__(self, settings: Config) -> None:
         self._settings = settings
         self._usage_logger, self._usage_log_warning = _build_file_logger(
             "tol.llm.usage",
@@ -62,11 +61,14 @@ class ChatGptClient:
 
     @classmethod
     def from_config(cls, model_override: str | None = None) -> "ChatGptClient":
-        settings = load_settings()
+        settings = get_config()
         if model_override:
-            updated = settings.to_dict()
-            updated["model"] = model_override
-            settings = LlmSettings.from_dict(updated)
+            settings = Config.from_dict(
+                {
+                    **settings.to_dict(),
+                    "model": model_override,
+                }
+            )
         return cls(settings)
 
     def describe_tol(self, tol_doc: dict[str, Any]) -> LlmResponse:

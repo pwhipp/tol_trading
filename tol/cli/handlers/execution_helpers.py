@@ -6,18 +6,18 @@ from typing import Any
 
 from tol.execution.broker import BrokerAPI, FakeBrokerAPI, IBKRBrokerAPI
 from tol.execution.store import ExecutionStore
-from tol.llm import config as llm_config
+from tol import config as app_config
 
 
 def resolve_db_path() -> Path:
-    config_dir = llm_config.config_path().parent
+    config_dir = app_config.get_config_path().parent
     return config_dir / "tol_execution.sqlite3"
 
 
 def resolve_broker(mode: str | None) -> BrokerAPI:
-    settings = llm_config.load_settings()
+    settings = app_config.get_config()
     broker_name = settings.broker
-    config_dir = llm_config.config_path().parent
+    config_dir = app_config.get_config_path().parent
     broker_map = {
         "FakeBrokerAPI": lambda: FakeBrokerAPI(
             config_dir / "fake_broker_state.yaml"
