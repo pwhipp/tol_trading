@@ -69,10 +69,23 @@ class FakeBrokerAPI(BrokerAPI):
 
     def _load_state(self) -> dict[str, Any]:
         if not self._state_path.exists():
-            return {}
+            state = {
+                "market": {"open": True},
+                "portfolio": {"cash": {"USD": 1_000_000}, "positions": []},
+                "orders": {},
+            }
+            self._save_state(state)
+            return state
         with self._state_path.open("r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle)
-        return data or {}
+        if data is None:
+            data = {
+                "market": {"open": True},
+                "portfolio": {"cash": {"USD": 1_000_000}, "positions": []},
+                "orders": {},
+            }
+            self._save_state(data)
+        return data
 
     def _save_state(self, state: dict[str, Any]) -> None:
         with self._state_path.open("w", encoding="utf-8") as handle:

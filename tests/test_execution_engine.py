@@ -161,3 +161,13 @@ def test_abort_with_open_orders(tmp_path: Path) -> None:
     state = _read_state(broker_state)
     order_id = next(iter(state["orders"]))
     assert state["orders"][order_id]["status"] == "CANCELLED"
+
+
+def test_fake_broker_initializes_state(tmp_path: Path) -> None:
+    broker_state = tmp_path / "broker.yaml"
+    broker = FakeBrokerAPI(broker_state)
+    snapshot = broker.get_portfolio_snapshot()
+
+    state = _read_state(broker_state)
+    assert state["portfolio"]["cash"]["USD"] == 1_000_000
+    assert snapshot["portfolio"]["cash"]["USD"] == 1_000_000
