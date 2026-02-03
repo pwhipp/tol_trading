@@ -11,6 +11,8 @@ class LlmSettings:
     base_url: str
     model: str
     mode: str
+    data_path: Path
+    broker: str
     timeout_seconds: float
     temperature: float
     max_tokens: int
@@ -28,6 +30,8 @@ class LlmSettings:
         mode = str(data.get("mode", "paper")).lower()
         if mode not in {"paper", "live"}:
             raise ValueError("mode must be 'paper' or 'live'")
+        data_path = _normalize_path_value(data.get("data_path"))
+        broker = _normalize_broker_name(data.get("broker"))
         return cls(
             api_key=str(data.get("api_key", "")),
             base_url=str(
@@ -38,6 +42,8 @@ class LlmSettings:
             ),
             model=str(data.get("model", "gpt-4.1")),
             mode=mode,
+            data_path=data_path,
+            broker=broker,
             timeout_seconds=float(data.get("timeout_seconds", 30.0)),
             temperature=float(data.get("temperature", 0.0)),
             max_tokens=int(data.get("max_tokens", 50000)),
@@ -59,6 +65,8 @@ class LlmSettings:
             "base_url": self.base_url,
             "model": self.model,
             "mode": self.mode,
+            "data_path": str(self.data_path),
+            "broker": self.broker,
             "timeout_seconds": self.timeout_seconds,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
@@ -79,6 +87,22 @@ def _normalize_optional_code(value: Any) -> Optional[str]:
         return None
     text = str(value).strip().upper()
     return text or None
+
+
+def _normalize_path_value(value: Any) -> Path:
+    if value is None:
+        raise ValueError("data_path is required")
+    text = str(value).strip()
+    if not text:
+        raise ValueError("data_path must not be empty")
+    return Path(text).expanduser()
+
+
+def _normalize_broker_name(value: Any) -> str:
+    name = str(value or "IBKRBrokerAPI").strip()
+    if name not in {"IBKRBrokerAPI", "FakeBrokerAPI"}:
+        raise ValueError("broker must be 'IBKRBrokerAPI' or 'FakeBrokerAPI'")
+    return name
 
 
 __all__ = ["LlmSettings"]

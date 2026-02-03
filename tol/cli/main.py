@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument(
         "--mode",
         choices=["paper", "live"],
-        help="Override the configured execution mode for the generated document.",
+        help="Override the configured trading mode for the generated document.",
     )
 
     generate_parser.add_argument(

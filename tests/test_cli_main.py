@@ -98,16 +98,21 @@ class TestCliMain(unittest.TestCase):
         import os
         import tempfile
 
+        from tol.llm import config as llm_config
         from tol.cli.handlers.status import handle_status
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            db_path = os.path.join(temp_dir, "missing.sqlite")
-            os.environ["TOL_DB_PATH"] = db_path
+            os.environ["XDG_CONFIG_HOME"] = temp_dir
+            settings = llm_config.load_settings()
+            data_path = os.path.join(temp_dir, "data")
+            updated = llm_config.set_setting(settings, "data_path", data_path)
+            updated = llm_config.set_setting(updated, "broker", "FakeBrokerAPI")
+            llm_config.write_settings(updated)
             try:
                 args = build_parser().parse_args(["status"])
                 handle_status(args)
             finally:
-                os.environ.pop("TOL_DB_PATH", None)
+                os.environ.pop("XDG_CONFIG_HOME", None)
 
 
 if __name__ == "__main__":

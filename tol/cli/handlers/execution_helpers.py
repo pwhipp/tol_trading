@@ -1,24 +1,27 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
 
 from tol.execution.broker import BrokerAPI, FakeBrokerAPI, IBKRBrokerAPI
 from tol.execution.store import ExecutionStore
+from tol.llm import config as llm_config
 
 
 def resolve_db_path() -> Path:
-    return Path(os.environ.get("TOL_DB_PATH", "tol_execution.sqlite3"))
+    settings = llm_config.load_settings()
+    return settings.data_path / "tol_execution.sqlite3"
 
 
 def resolve_broker(mode: str | None) -> BrokerAPI:
-    fake_state = os.environ.get("TOL_FAKE_BROKER_STATE")
-    if fake_state:
-        return FakeBrokerAPI(Path(fake_state))
-    broker_mode = mode or os.environ.get("TOL_IBKR_MODE", "paper")
-    return IBKRBrokerAPI(broker_mode)
+    settings = llm_config.load_settings()
+    broker_name = settings.broker
+    if broker_name == "FakeBrokerAPI":
+        state_path = settings.data_path / "fake_broker_state.yaml"
+        return FakeBrokerAPI(state_path)
+    trading_mode = mode or settings.mode
+    return IBKRBrokerAPI(trading_mode)
 
 
 def lookup_execution_mode(db_path: Path, execution_id: int) -> str | None:

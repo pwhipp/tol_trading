@@ -9,6 +9,11 @@ import yaml
 from tol.llm.settings import LlmSettings
 
 
+def _default_data_path() -> Path:
+    repo_root = Path(__file__).resolve().parents[2]
+    return repo_root / "data"
+
+
 CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     "api_key": {"default": "", "parser": str},
     "base_url": {
@@ -17,6 +22,8 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     },
     "model": {"default": "gpt-4.1", "parser": str},
     "mode": {"default": "paper", "parser": str},
+    "data_path": {"default": None, "parser": str},
+    "broker": {"default": "IBKRBrokerAPI", "parser": str},
     "timeout_seconds": {"default": 30.0, "parser": float},
     "temperature": {"default": 0.0, "parser": float},
     "max_tokens": {"default": 50000, "parser": int},
@@ -32,6 +39,7 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
 DEFAULT_SETTINGS: dict[str, Any] = {
     key: value["default"] for key, value in CONFIG_PARAMS.items()
 }
+DEFAULT_SETTINGS["data_path"] = str(_default_data_path())
 
 
 def config_path() -> Path:
@@ -82,6 +90,11 @@ def set_setting(settings: LlmSettings, key: str, raw_value: str) -> LlmSettings:
         normalized = raw_value.strip().lower()
         if normalized not in {"paper", "live"}:
             raise ValueError("mode must be 'paper' or 'live'")
+        raw_value = normalized
+    if key == "broker":
+        normalized = raw_value.strip()
+        if normalized not in {"IBKRBrokerAPI", "FakeBrokerAPI"}:
+            raise ValueError("broker must be 'IBKRBrokerAPI' or 'FakeBrokerAPI'")
         raw_value = normalized
     parser = CONFIG_PARAMS[key]["parser"]
     if raw_value == "" and key in {
