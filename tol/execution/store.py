@@ -192,15 +192,30 @@ class ExecutionStore:
         status: str,
         submitted_qty: float,
         filled_qty: float,
+        trade_json: str | None,
     ) -> None:
         with self.transaction() as conn:
             conn.execute(
                 """
                 INSERT INTO "order"
-                    (action_id, broker_order_id, status, submitted_qty, filled_qty)
-                VALUES (?, ?, ?, ?, ?)
+                    (
+                        action_id,
+                        broker_order_id,
+                        status,
+                        submitted_qty,
+                        filled_qty,
+                        trade_json
+                    )
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (action_id, broker_order_id, status, submitted_qty, filled_qty),
+                (
+                    action_id,
+                    broker_order_id,
+                    status,
+                    submitted_qty,
+                    filled_qty,
+                    trade_json,
+                ),
             )
 
     def insert_fill(
@@ -283,6 +298,7 @@ class ExecutionStore:
                     status TEXT NOT NULL,
                     submitted_qty REAL NOT NULL,
                     filled_qty REAL NOT NULL,
+                    trade_json TEXT,
                     FOREIGN KEY (action_id) REFERENCES action(id)
                 );
 
@@ -296,3 +312,7 @@ class ExecutionStore:
                 );
                 """
             )
+            columns = conn.execute('PRAGMA table_info("order")').fetchall()
+            column_names = {row["name"] for row in columns}
+            if "trade_json" not in column_names:
+                conn.execute('ALTER TABLE "order" ADD COLUMN trade_json TEXT')

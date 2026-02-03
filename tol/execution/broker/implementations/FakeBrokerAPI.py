@@ -7,24 +7,29 @@ from typing import Any
 
 import yaml
 
-from tol.execution.broker.BrokerAPI import BrokerAPI, OrderStatus
+from tol.execution.broker.BrokerAPI import BrokerAPI, OrderStatus, OrderSubmission
 
 
 class FakeBrokerAPI(BrokerAPI):
     def __init__(self, state_path: Path) -> None:
         self._state_path = Path(state_path)
 
-    def submit_order(self, order_spec: dict[str, Any]) -> str:
+    def submit_order(self, order_spec: dict[str, Any]) -> OrderSubmission:
         state = self._load_state()
         orders = state.setdefault("orders", {})
         broker_order_id = self._next_order_id(orders.keys())
+        trade_snapshot = _build_fake_trade_snapshot(order_spec, broker_order_id)
         orders[broker_order_id] = {
             "status": "SUBMITTED",
             "submitted_qty": float(order_spec["quantity"]),
             "filled_qty": 0.0,
+            "trade": trade_snapshot,
         }
         self._save_state(state)
-        return broker_order_id
+        return OrderSubmission(
+            broker_order_id=broker_order_id,
+            trade=trade_snapshot,
+        )
 
     def cancel_order(self, broker_order_id: str) -> None:
         state = self._load_state()
@@ -104,3 +109,20 @@ class FakeBrokerAPI(BrokerAPI):
                     continue
                 highest = max(highest, value)
         return f"FB-{highest + 1}"
+
+
+def _build_fake_trade_snapshot(
+    order_spec: dict[str, Any],
+    broker_order_id: str,
+) -> dict[str, Any]:
+    quantity = Decimal(str(order_spec.get("quantity", 0)))
+    return {
+        "order_id": broker_order_id,
+        "status": "SUBMITTED",
+        "filled_qty": 0.0,
+        "avg_fill_price": None,
+        "action_type": order_spec.get("action_type"),
+        "symbol": order_spec.get("symbol"),
+        "submitted_qty": float(quantity),
+        "order_type": "MKT",
+    }

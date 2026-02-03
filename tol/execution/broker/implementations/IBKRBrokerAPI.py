@@ -5,7 +5,7 @@ from typing import Any
 
 from ib_insync import MarketOrder
 
-from tol.execution.broker.BrokerAPI import BrokerAPI, OrderStatus
+from tol.execution.broker.BrokerAPI import BrokerAPI, OrderStatus, OrderSubmission
 from tol.ibkr.gateway import IBKRGateway
 
 
@@ -13,7 +13,7 @@ class IBKRBrokerAPI(BrokerAPI):
     def __init__(self, mode: str) -> None:
         self._mode = mode
 
-    def submit_order(self, order_spec: dict[str, Any]) -> str:
+    def submit_order(self, order_spec: dict[str, Any]) -> OrderSubmission:
         gateway = IBKRGateway(self._mode)
         gateway.connect()
         try:
@@ -27,7 +27,15 @@ class IBKRBrokerAPI(BrokerAPI):
             order = MarketOrder(side, float(quantity))
             trade = gateway.ib.placeOrder(contract, order)
             broker_order_id = str(trade.order.orderId)
-            return broker_order_id
+            trade_snapshot = _build_trade_snapshot(
+                trade=trade,
+                order_spec=order_spec,
+                broker_order_id=broker_order_id,
+            )
+            return OrderSubmission(
+                broker_order_id=broker_order_id,
+                trade=trade_snapshot,
+            )
         finally:
             gateway.disconnect()
 
@@ -109,3 +117,29 @@ def _normalize_ibkr_status(status: str) -> str:
     if normalized in {"INACTIVE", "PENDINGCANCEL"}:
         return "FAILED"
     return normalized
+
+
+def _build_trade_snapshot(
+    trade: Any,
+    order_spec: dict[str, Any],
+    broker_order_id: str,
+) -> dict[str, Any]:
+    order_status = getattr(trade, "orderStatus", None)
+    status = getattr(order_status, "status", "Submitted")
+    filled = getattr(order_status, "filled", 0)
+    avg_price = getattr(order_status, "avgFillPrice", None)
+    order = getattr(trade, "order", None)
+    order_type = getattr(order, "orderType", None)
+    avg_price_decimal = None
+    if avg_price is not None:
+        avg_price_decimal = float(Decimal(str(avg_price)))
+    return {
+        "order_id": broker_order_id,
+        "status": str(status).upper(),
+        "filled_qty": float(Decimal(str(filled))),
+        "avg_fill_price": avg_price_decimal,
+        "action_type": order_spec.get("action_type"),
+        "symbol": order_spec.get("symbol"),
+        "submitted_qty": float(Decimal(str(order_spec.get("quantity", 0)))),
+        "order_type": order_type,
+    }
