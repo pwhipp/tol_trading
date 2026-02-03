@@ -34,20 +34,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     run_parser = subparsers.add_parser(
         "run",
-        help="Run a TOL orchestration",
+        help="Run a TOL orchestration from stdin",
     )
-    run_parser.add_argument("file", help="Path to the TOL document")
 
     check_parser = subparsers.add_parser(
         "check",
         help="Check portfolio holdings and pricing via IBKR API",
-    )
-
-    check_parser.add_argument(
-        "--mode",
-        choices=["paper", "live"],
-        required=True,
-        help="Broker mode to check (paper or live)",
     )
 
     describe_parser = subparsers.add_parser(
@@ -68,12 +60,6 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser = subparsers.add_parser(
         "generate",
         help="Generate a TOL document from stdin using the LLM",
-    )
-
-    generate_parser.add_argument(
-        "--mode",
-        choices=["paper", "live"],
-        help="Override the configured trading mode for the generated document.",
     )
 
     generate_parser.add_argument(
