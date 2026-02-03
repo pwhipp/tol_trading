@@ -47,7 +47,7 @@ def test_generate_user_prompt_includes_request() -> None:
     )
 
     assert request in prompt
-    assert "Convert the follwing request into a TOL document:" in prompt
+    assert "Convert the following request into a TOL document:" in prompt
 
 
 def test_generate_system_message_has_rules() -> None:

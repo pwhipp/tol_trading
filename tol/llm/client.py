@@ -230,33 +230,8 @@ def _describe_system_message() -> dict[str, str]:
 
 
 def _generate_system_message() -> dict[str, str]:
-    return {
-        "role": "system",
-        "content": (
-            "You are a compiler that converts natural language trading "
-            "instructions into a TOL JSON document.\n\n"
-            "Rules:\n"
-            "- Output JSON only.\n"
-            "- The response MUST be a single JSON object matching the provided "
-            "schema.\n"
-            "- If a valid document cannot be produced, output:\n"
-            '  {"error": "<reason>"}\n'
-            "- Do NOT include explanations, markdown, or extra text."
-            "\n- Use BUY actions with quantity percentages when allocating sell "
-            "proceeds across symbols; do not use TARGET for proceeds "
-            "allocation.\n"
-            "- Use TARGET only when the user specifies desired portfolio "
-            "percent ownership.\n"
-            "- TARGET percent values must be strings with a trailing '%' "
-            "symbol (e.g., \"66%\").\n"
-            "- BUY and TARGET actions must always include a non-empty 'using' "
-            "list.\n"
-            "- If the funding source is not explicitly specified, default "
-            "'using' to [\"CASH(CCC)\"] using the exchange settlement currency "
-            "(derived from the ticker suffix when available, otherwise the "
-            "defaults provided in the context)."
-        ),
-    }
+    prompt = _render_prompt("generate_tol_system.j2")
+    return {"role": "system", "content": prompt}
 
 
 def _context_message(content: str) -> dict[str, str]:
