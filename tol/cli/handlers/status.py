@@ -16,6 +16,9 @@ def handle_status(args) -> None:
         print("No execution found.")
         return
     mode = lookup_execution_mode(db_path, execution_id)
+    if mode is None:
+        print("No execution found.")
+        return
     broker_api = resolve_broker(mode)
     engine = ExecutionEngine(db_path, broker_api)
     status = engine.get_status(execution_id)

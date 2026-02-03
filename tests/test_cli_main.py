@@ -94,6 +94,21 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.command, "abort")
         self.assertEqual(args.execution_id, 7)
 
+    def test_status_command_without_db_schema(self) -> None:
+        import os
+        import tempfile
+
+        from tol.cli.handlers.status import handle_status
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = os.path.join(temp_dir, "missing.sqlite")
+            os.environ["TOL_DB_PATH"] = db_path
+            try:
+                args = build_parser().parse_args(["status"])
+                handle_status(args)
+            finally:
+                os.environ.pop("TOL_DB_PATH", None)
+
 
 if __name__ == "__main__":
     unittest.main()

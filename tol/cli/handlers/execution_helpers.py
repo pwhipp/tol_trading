@@ -35,24 +35,30 @@ def lookup_execution_mode(db_path: Path, execution_id: int) -> str | None:
 
 
 def find_active_execution_id(db_path: Path) -> int | None:
-    with _connect(db_path) as conn:
-        row = conn.execute(
-            """
-            SELECT id FROM execution
-            WHERE status IN ('RUNNING', 'SUSPENDED')
-            ORDER BY created_at ASC
-            LIMIT 1
-            """
-        ).fetchone()
+    try:
+        with _connect(db_path) as conn:
+            row = conn.execute(
+                """
+                SELECT id FROM execution
+                WHERE status IN ('RUNNING', 'SUSPENDED')
+                ORDER BY created_at ASC
+                LIMIT 1
+                """
+            ).fetchone()
+    except sqlite3.OperationalError:
+        return None
     return int(row["id"]) if row else None
 
 
 def _load_execution(db_path: Path, execution_id: int) -> dict[str, Any] | None:
-    with _connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT * FROM execution WHERE id = ?",
-            (execution_id,),
-        ).fetchone()
+    try:
+        with _connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM execution WHERE id = ?",
+                (execution_id,),
+            ).fetchone()
+    except sqlite3.OperationalError:
+        return None
     return dict(row) if row else None
 
 
