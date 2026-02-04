@@ -1,12 +1,15 @@
 import argparse
 
-from tol.cli.handlers.check import handle_check
 from tol.cli.handlers.config import handle_config
 from tol.cli.handlers.describe import handle_describe
 from tol.cli.handlers.generate import handle_generate
-from tol.cli.handlers.abort import handle_abort
+from tol.cli.handlers.cancel import handle_cancel
 from tol.cli.handlers.resume import handle_resume
-from tol.cli.handlers.run import handle_run
+from tol.cli.handlers.execute import handle_execute
+from tol.cli.handlers.portfolio import (
+    handle_portfolio_orders,
+    handle_portfolio_summary,
+)
 from tol.cli.handlers.status import handle_status
 from tol.cli.handlers.test import handle_test
 
@@ -32,14 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
     )
 
-    run_parser = subparsers.add_parser(
-        "run",
-        help="Run a TOL orchestration from stdin",
-    )
-
-    check_parser = subparsers.add_parser(
-        "check",
-        help="Check portfolio holdings and pricing via IBKR API",
+    execute_parser = subparsers.add_parser(
+        "execute",
+        help="Execute a TOL orchestration from stdin",
     )
 
     describe_parser = subparsers.add_parser(
@@ -125,15 +123,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Execution ID (defaults to the active execution)",
     )
 
-    abort_parser = subparsers.add_parser(
-        "abort",
-        help="Abort an execution",
+    cancel_parser = subparsers.add_parser(
+        "cancel",
+        help="Cancel an execution",
     )
-    abort_parser.add_argument(
+    cancel_parser.add_argument(
         "execution_id",
         nargs="?",
         type=int,
         help="Execution ID (defaults to the active execution)",
+    )
+
+    portfolio_parser = subparsers.add_parser(
+        "portfolio",
+        help="Inspect portfolio holdings and orders",
+    )
+    portfolio_subparsers = portfolio_parser.add_subparsers(
+        dest="portfolio_command",
+        required=True,
+    )
+    portfolio_subparsers.add_parser(
+        "summary",
+        help="Summarize portfolio holdings and pricing",
+    )
+    portfolio_subparsers.add_parser(
+        "orders",
+        help="List open broker orders",
     )
 
     return parser
@@ -144,18 +159,30 @@ def main() -> None:
     args = parser.parse_args()
 
     command_map = {
-        "run": handle_run,
-        "check": handle_check,
+        "execute": handle_execute,
         "describe": handle_describe,
         "generate": handle_generate,
         "config": handle_config,
         "test": handle_test,
         "resume": handle_resume,
         "status": handle_status,
-        "abort": handle_abort,
+        "cancel": handle_cancel,
+        "portfolio": {
+            "summary": handle_portfolio_summary,
+            "orders": handle_portfolio_orders,
+        },
     }
 
     def handle_error(args):
         parser.error(f"Unknown command - {args.command}")
 
-    command_map.get(args.command, handle_error)(args)
+    handler = command_map.get(args.command, handle_error)
+    if isinstance(handler, dict):
+        sub_handler = handler.get(args.portfolio_command)
+        if sub_handler is None:
+            parser.error(
+                f"Unknown command - portfolio {args.portfolio_command}"
+            )
+        sub_handler(args)
+    else:
+        handler(args)

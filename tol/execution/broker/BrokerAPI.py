@@ -38,5 +38,9 @@ class BrokerAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_open_order_details(self) -> Iterable[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_portfolio_snapshot(self) -> dict[str, Any]:
         raise NotImplementedError

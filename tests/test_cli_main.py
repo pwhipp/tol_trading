@@ -6,37 +6,45 @@ from tol.cli.main import build_parser
 
 
 class TestCliMain(unittest.TestCase):
-    def test_run_command_parsing(self) -> None:
+    def test_execute_command_parsing(self) -> None:
         parser = build_parser()
         args = parser.parse_args([
-            "run",
+            "execute",
         ])
 
-        self.assertEqual(args.command, "run")
+        self.assertEqual(args.command, "execute")
 
-    def test_check_command_parsing(self) -> None:
+    def test_portfolio_summary_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["check"])
+        args = parser.parse_args(["portfolio", "summary"])
 
-        self.assertEqual(args.command, "check")
+        self.assertEqual(args.command, "portfolio")
+        self.assertEqual(args.portfolio_command, "summary")
 
-    def test_run_command_default_dry_run(self) -> None:
+    def test_portfolio_orders_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["run"])
+        args = parser.parse_args(["portfolio", "orders"])
 
-        self.assertEqual(args.command, "run")
+        self.assertEqual(args.command, "portfolio")
+        self.assertEqual(args.portfolio_command, "orders")
 
-    def test_run_help_mentions_stdin(self) -> None:
+    def test_execute_command_default_dry_run(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["execute"])
+
+        self.assertEqual(args.command, "execute")
+
+    def test_execute_help_mentions_stdin(self) -> None:
         parser = build_parser()
         subparsers_action = next(
             action
             for action in parser._actions
             if isinstance(action, argparse._SubParsersAction)
         )
-        run_parser = subparsers_action.choices["run"]
-        help_text = run_parser.format_help()
+        execute_parser = subparsers_action.choices["execute"]
+        help_text = execute_parser.format_help()
 
-        self.assertIn("usage: tol run", help_text)
+        self.assertIn("usage: tol execute", help_text)
 
     def test_describe_command_parsing(self) -> None:
         parser = build_parser()
@@ -83,11 +91,11 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.command, "status")
         self.assertEqual(args.execution_id, 12)
 
-    def test_abort_command_parsing(self) -> None:
+    def test_cancel_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["abort", "7"])
+        args = parser.parse_args(["cancel", "7"])
 
-        self.assertEqual(args.command, "abort")
+        self.assertEqual(args.command, "cancel")
         self.assertEqual(args.execution_id, 7)
 
     def test_status_command_without_db_schema(self) -> None:

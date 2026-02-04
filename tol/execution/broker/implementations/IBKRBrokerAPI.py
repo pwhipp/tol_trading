@@ -88,6 +88,14 @@ class IBKRBrokerAPI(BrokerAPI):
         finally:
             gateway.disconnect()
 
+    def list_open_order_details(self) -> list[dict[str, Any]]:
+        gateway = IBKRGateway(self._mode, self._client_id)
+        gateway.connect()
+        try:
+            return gateway.get_pending_trades()
+        finally:
+            gateway.disconnect()
+
     def get_portfolio_snapshot(self) -> dict[str, Any]:
         gateway = IBKRGateway(self._mode, self._client_id)
         gateway.connect()

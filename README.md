@@ -137,8 +137,8 @@ TOL gives you those guarantees — and nothing more.
 
 1. Use tol generate to create a tol document from natural language
 2. Review the generated tol document (see [TOL_SPEC.md](TOL_SPEC.md) for full normative semantics)
-3. Use tol check to validate execution documents
-4. Use tol run to execute using the mode specified in the document
+3. Use tol portfolio summary to validate execution documents
+4. Use tol execute to run using the mode specified in the document
 
 TOL is a tool for traders who value clarity over cleverness.
 

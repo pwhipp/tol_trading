@@ -1,23 +1,19 @@
 from collections import defaultdict
 from decimal import Decimal, ROUND_HALF_UP
 
+from tol.cli.handlers.pending_trades import (
+    format_pending_trade,
+    normalize_pending_trades,
+)
+from tol.cli.handlers.execution_helpers import get_broker_api
+from tol.config import get_config
 
-def pct(value: Decimal, total: Decimal) -> Decimal:
-    if total == 0:
-        return Decimal("0")
-    return (value / total * Decimal("100")).quantize(
-        Decimal("0.01"), rounding=ROUND_HALF_UP
-    )
 
-
-def handle_check(args) -> None:
-    from tol.cli.handlers.execution_helpers import get_broker_api
-    from tol.config import get_config
-
+def handle_portfolio_summary(args) -> None:
     config = get_config()
     broker_api = get_broker_api(config.mode)
 
-    print("TOL Portfolio Check")
+    print("TOL Portfolio Summary")
     print("----------------------------------------")
     print(f"Trading mode: {config.mode}")
     print()
@@ -41,7 +37,7 @@ def handle_check(args) -> None:
         total = portfolio_totals[ccy]
         print(
             f"  {ccy}: {amt:>12,.2f}   "
-            f"{pct(amt, total):>6}%"
+            f"{_pct(amt, total):>6}%"
         )
 
     print()
@@ -57,7 +53,7 @@ def handle_check(args) -> None:
             f"  {sym:<5} "
             f"{int(qty):>6} shares   "
             f"≈ {mv:>12,.2f} {ccy}   "
-            f"{pct(mv, total):>6}%"
+            f"{_pct(mv, total):>6}%"
         )
 
     print()
@@ -67,10 +63,37 @@ def handle_check(args) -> None:
         total = portfolio_totals[ccy]
         print(
             f"  {ccy}: {mv:>12,.2f}   "
-            f"{pct(mv, total):>6}%"
+            f"{_pct(mv, total):>6}%"
         )
 
     print("----------------------------------------")
+
+
+def handle_portfolio_orders(args) -> None:
+    config = get_config()
+    broker_api = get_broker_api(config.mode)
+    open_orders = broker_api.list_open_order_details()
+    pending_trades = normalize_pending_trades(open_orders)
+
+    print("TOL Portfolio Open Orders")
+    print("----------------------------------------")
+    print(f"Trading mode: {config.mode}")
+    print()
+    if not pending_trades:
+        print("No open orders.")
+        print("----------------------------------------")
+        return
+    for trade in pending_trades:
+        print(f"  {format_pending_trade(trade)}")
+    print("----------------------------------------")
+
+
+def _pct(value: Decimal, total: Decimal) -> Decimal:
+    if total == 0:
+        return Decimal("0")
+    return (value / total * Decimal("100")).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
 
 
 def _normalize_snapshot(snapshot: dict) -> tuple[dict[str, Decimal], list[dict]]:
