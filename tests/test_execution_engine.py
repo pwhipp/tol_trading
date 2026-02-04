@@ -143,7 +143,7 @@ def test_restart_between_advances(tmp_path: Path) -> None:
     assert status.execution["status"] == "COMPLETED"
 
 
-def test_abort_with_open_orders(tmp_path: Path) -> None:
+def test_cancel_with_open_orders(tmp_path: Path) -> None:
     broker_state = tmp_path / "broker.yaml"
     _write_state(
         broker_state,
@@ -159,7 +159,7 @@ def test_abort_with_open_orders(tmp_path: Path) -> None:
     execution_id = engine.start_execution(_basic_tol_doc(), broker)
     engine.advance_execution(execution_id)
 
-    engine.abort_execution(execution_id)
+    engine.cancel_execution(execution_id)
     status = engine.get_status(execution_id)
     assert status.execution["status"] == "ABORTED"
     assert status.actions[0]["status"] == "CANCELLED"

@@ -7,7 +7,7 @@ from tol.cli.handlers.execution_helpers import (
 from tol.execution.engine import ExecutionEngine
 
 
-def handle_abort(args) -> None:
+def handle_cancel(args) -> None:
     db_path = resolve_db_path()
     execution_id = args.execution_id or find_active_execution_id(db_path)
     if execution_id is None:
@@ -16,5 +16,5 @@ def handle_abort(args) -> None:
     mode = lookup_execution_mode(db_path, execution_id)
     broker_api = get_broker_api(mode)
     engine = ExecutionEngine(db_path, broker_api)
-    engine.abort_execution(execution_id)
+    engine.cancel_execution(execution_id)
     print(execution_id)

@@ -5,7 +5,7 @@ from tol.execution.engine import ExecutionEngine
 from tol.load import load_tol_text
 
 
-def handle_run(args) -> None:
+def handle_execute(args) -> None:
     tol_text = sys.stdin.read()
     if not tol_text.strip():
         print("ERROR: No TOL document provided on stdin.", file=sys.stderr)

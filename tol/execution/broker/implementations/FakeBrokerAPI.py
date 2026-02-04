@@ -187,6 +187,18 @@ class FakeBrokerAPI(BrokerAPI):
                 open_orders.append(broker_order_id)
         return open_orders
 
+    def list_open_order_details(self) -> list[dict[str, Any]]:
+        state = self._state.load()
+        open_orders = []
+        for order in state.get("orders", {}).values():
+            status = str(order.get("status", "SUBMITTED")).upper()
+            if status not in {"SUBMITTED", "PARTIAL"}:
+                continue
+            trade = dict(order.get("trade", {}))
+            trade["status"] = status
+            open_orders.append(trade)
+        return open_orders
+
     def get_portfolio_snapshot(self) -> dict[str, Any]:
         state = self._state.load()
         market_open = True
@@ -252,9 +264,10 @@ def _has_closed_market_orders(
         trade = order.get("trade", {})
         symbol = FakeBrokerState.normalize_symbol(trade.get("symbol", ""))
         _, exchange = FakeBrokerState.split_symbol(symbol)
+        if "GLOBAL" in normalized_closed:
+            return True
         if exchange and (
             FakeBrokerState.normalize_exchange(exchange) in normalized_closed
-            or "GLOBAL" in normalized_closed
         ):
             return True
     return False

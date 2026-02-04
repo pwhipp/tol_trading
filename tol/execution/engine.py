@@ -97,7 +97,7 @@ class ExecutionEngine:
         self.advance_execution(execution_id)
         return execution_id
 
-    def abort_execution(self, execution_id: int) -> None:
+    def cancel_execution(self, execution_id: int) -> None:
         broker_api = self._require_broker()
         orders = self._store.list_open_orders(execution_id)
         for order in orders:

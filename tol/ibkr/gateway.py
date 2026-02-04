@@ -6,6 +6,8 @@ from ib_insync.wrapper import RequestError
 
 from tol.exchange import resolve_exchange_currency
 
+_REFUSED_ENDPOINTS: set[tuple[str, int]] = set()
+
 
 class IBKRGateway:
     def __init__(self, mode: str, client_id: int):
@@ -24,6 +26,13 @@ class IBKRGateway:
                 clientId=self.client_id,
                 timeout=5,
             )
+        except ConnectionRefusedError as exc:
+            endpoint = ("127.0.0.1", port)
+            if endpoint not in _REFUSED_ENDPOINTS:
+                _REFUSED_ENDPOINTS.add(endpoint)
+                print(f"API connection failed: {exc!r}")
+                print("Make sure API port on TWS/IBG is open")
+            raise SystemExit(1) from None
         except RequestError as exc:
             if exc.code == 326:
                 print(
