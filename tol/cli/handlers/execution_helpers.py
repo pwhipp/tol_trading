@@ -6,23 +6,26 @@ from typing import Any
 
 from tol.execution.broker import BrokerAPI, FakeBrokerAPI, IBKRBrokerAPI
 from tol.execution.store import ExecutionStore
-from tol import config as app_config
+from tol.config import get_config, get_config_path
 
 
 def resolve_db_path() -> Path:
-    config_dir = app_config.get_config_path().parent
+    config_dir = get_config_path().parent
     return config_dir / "tol_execution.sqlite3"
 
 
 def resolve_broker(mode: str | None) -> BrokerAPI:
-    settings = app_config.get_config()
-    broker_name = settings.broker
-    config_dir = app_config.get_config_path().parent
+    config = get_config()
+    broker_name = config.broker
+    config_dir = get_config_path().parent
     broker_map = {
         "FakeBrokerAPI": lambda: FakeBrokerAPI(
             config_dir / "fake_broker_state.yaml"
         ),
-        "IBKRBrokerAPI": lambda: IBKRBrokerAPI(mode or settings.mode),
+        "IBKRBrokerAPI": lambda: IBKRBrokerAPI(
+            mode or config.mode,
+            config.broker_client_id,
+        ),
     }
     if broker_name not in broker_map:
         raise ValueError(f"Unknown broker setting: {broker_name}")

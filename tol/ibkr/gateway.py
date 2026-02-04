@@ -7,13 +7,25 @@ from tol.exchange import resolve_exchange_currency
 
 
 class IBKRGateway:
-    def __init__(self, mode: str):
+    def __init__(self, mode: str, client_id: int):
         self.mode = mode
+        self.client_id = client_id
         self.ib = IB()
 
     def connect(self):
         port = 4002 if self.mode == "paper" else 4001
-        self.ib.connect("127.0.0.1", port=port, clientId=1, timeout=5)
+        if self.ib.isConnected():
+            self.ib.disconnect()
+        try:
+            self.ib.connect(
+                "127.0.0.1",
+                port=port,
+                clientId=self.client_id,
+                timeout=5,
+            )
+        except Exception:
+            self.ib.disconnect()
+            raise
 
     def disconnect(self):
         self.ib.disconnect()

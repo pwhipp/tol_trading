@@ -10,11 +10,12 @@ from tol.ibkr.gateway import IBKRGateway
 
 
 class IBKRBrokerAPI(BrokerAPI):
-    def __init__(self, mode: str) -> None:
+    def __init__(self, mode: str, client_id: int) -> None:
         self._mode = mode
+        self._client_id = client_id
 
     def submit_order(self, order_spec: dict[str, Any]) -> OrderSubmission:
-        gateway = IBKRGateway(self._mode)
+        gateway = IBKRGateway(self._mode, self._client_id)
         gateway.connect()
         try:
             contract = gateway.qualify_stock_contract(order_spec["symbol"])
@@ -40,7 +41,7 @@ class IBKRBrokerAPI(BrokerAPI):
             gateway.disconnect()
 
     def cancel_order(self, broker_order_id: str) -> None:
-        gateway = IBKRGateway(self._mode)
+        gateway = IBKRGateway(self._mode, self._client_id)
         gateway.connect()
         try:
             gateway.ib.cancelOrder(int(broker_order_id))
@@ -48,7 +49,7 @@ class IBKRBrokerAPI(BrokerAPI):
             gateway.disconnect()
 
     def get_order_status(self, broker_order_id: str) -> OrderStatus:
-        gateway = IBKRGateway(self._mode)
+        gateway = IBKRGateway(self._mode, self._client_id)
         gateway.connect()
         try:
             gateway.ib.reqAllOpenOrders()
@@ -73,7 +74,7 @@ class IBKRBrokerAPI(BrokerAPI):
             gateway.disconnect()
 
     def list_open_orders(self) -> list[str]:
-        gateway = IBKRGateway(self._mode)
+        gateway = IBKRGateway(self._mode, self._client_id)
         gateway.connect()
         try:
             gateway.ib.reqAllOpenOrders()
@@ -88,7 +89,7 @@ class IBKRBrokerAPI(BrokerAPI):
             gateway.disconnect()
 
     def get_portfolio_snapshot(self) -> dict[str, Any]:
-        gateway = IBKRGateway(self._mode)
+        gateway = IBKRGateway(self._mode, self._client_id)
         gateway.connect()
         try:
             cash = gateway.get_cash_by_currency()
