@@ -25,8 +25,8 @@ class IBKRGateway:
                 timeout=5,
             )
         except ConnectionRefusedError as exc:
-            print(f"{exc.__class__.__name__}: {exc}")
-            print("Is the IB gateway running?")
+            print(f"API connection failed: {exc!r}")
+            print("Make sure API port on TWS/IBG is open")
             raise SystemExit(1) from None
         except RequestError as exc:
             if exc.code == 326:

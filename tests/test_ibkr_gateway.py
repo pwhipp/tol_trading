@@ -57,7 +57,7 @@ class TestIBKRGatewayConnect(unittest.TestCase):
 
         self.assertEqual(
             stdout.getvalue().strip(),
-            "ConnectionRefusedError: [Errno 111] Connect call failed: "
-            "('127.0.0.1', 4002)\n"
-            "Is the IB gateway running?",
+            "API connection failed: ConnectionRefusedError("
+            "111, 'Connect call failed')\n"
+            "Make sure API port on TWS/IBG is open",
         )
