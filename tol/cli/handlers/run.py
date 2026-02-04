@@ -1,6 +1,6 @@
 import sys
 
-from tol.cli.handlers.execution_helpers import resolve_broker, resolve_db_path
+from tol.cli.handlers.execution_helpers import get_broker_api, resolve_db_path
 from tol.execution.engine import ExecutionEngine
 from tol.load import load_tol_text
 
@@ -17,7 +17,7 @@ def handle_run(args) -> None:
         print(f"ERROR: Failed to parse TOL document: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    broker_api = resolve_broker(tol_doc.get("mode"))
+    broker_api = get_broker_api(tol_doc.get("mode"))
     engine = ExecutionEngine(resolve_db_path(), broker_api)
     execution_id = engine.start_execution(tol_doc, broker_api)
     engine.advance_execution(execution_id)

@@ -14,7 +14,7 @@ def resolve_db_path() -> Path:
     return config_dir / "tol_execution.sqlite3"
 
 
-def resolve_broker(mode: str | None) -> BrokerAPI:
+def get_broker_api(mode: str | None) -> BrokerAPI:
     config = get_config()
     broker_name = config.broker
     config_dir = get_config_path().parent

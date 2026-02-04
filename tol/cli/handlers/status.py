@@ -3,7 +3,7 @@ import json
 from tol.cli.handlers.execution_helpers import (
     find_active_execution_id,
     lookup_execution_mode,
-    resolve_broker,
+    get_broker_api,
     resolve_db_path,
 )
 from tol.execution.engine import ExecutionEngine
@@ -19,7 +19,7 @@ def handle_status(args) -> None:
     if mode is None:
         print("No execution found.")
         return
-    broker_api = resolve_broker(mode)
+    broker_api = get_broker_api(mode)
     engine = ExecutionEngine(db_path, broker_api)
     status = engine.get_status(execution_id)
     print(
