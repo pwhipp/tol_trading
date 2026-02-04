@@ -8,7 +8,7 @@ from tol.ibkr.gateway import IBKRGateway
 
 
 class _FakeIB:
-    def __init__(self, error: RequestError) -> None:
+    def __init__(self, error: Exception) -> None:
         self._error = error
         self.disconnected = False
 
@@ -38,4 +38,26 @@ class TestIBKRGatewayConnect(unittest.TestCase):
             stdout.getvalue().strip(),
             "clientId (7) already in use.\n"
             "Try a different clientId or restart the IB Gateway process.",
+        )
+
+    def test_connection_refused_prints_message(self) -> None:
+        gateway = IBKRGateway("paper", client_id=7)
+        gateway.ib = _FakeIB(
+            ConnectionRefusedError(
+                111,
+                "Connect call failed",
+                ("127.0.0.1", 4002),
+            )
+        )
+
+        stdout = io.StringIO()
+        with self.assertRaises(SystemExit):
+            with redirect_stdout(stdout):
+                gateway.connect()
+
+        self.assertEqual(
+            stdout.getvalue().strip(),
+            "ConnectionRefusedError: [Errno 111] Connect call failed: "
+            "('127.0.0.1', 4002)\n"
+            "Is the IB gateway running?",
         )

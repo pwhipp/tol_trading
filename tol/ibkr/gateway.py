@@ -24,6 +24,10 @@ class IBKRGateway:
                 clientId=self.client_id,
                 timeout=5,
             )
+        except ConnectionRefusedError as exc:
+            print(f"{exc.__class__.__name__}: {exc}")
+            print("Is the IB gateway running?")
+            raise SystemExit(1) from None
         except RequestError as exc:
             if exc.code == 326:
                 print(
