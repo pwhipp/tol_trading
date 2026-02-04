@@ -1,7 +1,8 @@
 import math
-from decimal import Decimal
 from collections import defaultdict
+from decimal import Decimal
 from ib_insync import IB, MarketOrder, Stock
+from ib_insync.wrapper import RequestError
 
 from tol.exchange import resolve_exchange_currency
 
@@ -23,7 +24,14 @@ class IBKRGateway:
                 clientId=self.client_id,
                 timeout=5,
             )
-        except Exception:
+        except RequestError as exc:
+            if exc.code == 326:
+                print(
+                    "clientId ({}) already in use.\n"
+                    "Try a different clientId or restart the IB Gateway process.".format(
+                        self.client_id
+                    )
+                )
             self.ib.disconnect()
             raise
 
@@ -167,7 +175,6 @@ class IBKRGateway:
         if math.isnan(numeric):
             return None
         return Decimal(str(value))
-
 
 def _split_ticker(symbol: str) -> tuple[str, str | None]:
     cleaned = symbol.strip().upper()
