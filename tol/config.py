@@ -18,6 +18,7 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     "model": {"default": "gpt-4.1", "parser": str},
     "mode": {"default": "paper", "parser": str},
     "broker": {"default": "IBKRBrokerAPI", "parser": str},
+    "broker_client_id": {"default": 11, "parser": int},
     "timeout_seconds": {"default": 30.0, "parser": float},
     "temperature": {"default": 0.0, "parser": float},
     "max_tokens": {"default": 50000, "parser": int},
@@ -83,14 +84,6 @@ def get_config_path() -> Path:
     return base / "tol" / "config.json"
 
 
-def _legacy_config_path() -> Path:
-    if os.name == "nt":
-        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
-        return base / "tol" / "config.yaml"
-    base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-    return base / "tol" / "config.yaml"
-
-
 def load_config() -> Config:
     config = Config()
     config.load()
@@ -117,8 +110,7 @@ def set_setting(config: Config, key: str, raw_value: str) -> Config:
 
 
 def dump_settings(config: Config, stream) -> None:
-    json.dump(config.to_dict(), stream, indent=4)
-    stream.write("\n")
+    yaml.safe_dump(config.to_dict(), stream, sort_keys=False)
 
 
 def _ensure_setting_key(key: str) -> None:
@@ -162,17 +154,9 @@ def _serialize_value(key: str, value: Any) -> Any:
 
 def _load_config_data(path: Path | None) -> dict[str, Any]:
     config_path = path or get_config_path()
-    legacy_path = _legacy_config_path()
     if config_path.exists():
         data = _read_json(config_path)
         return data if isinstance(data, dict) else {}
-    if legacy_path.exists():
-        data = _read_yaml(legacy_path)
-        if not isinstance(data, dict):
-            data = {}
-        config = Config.from_dict(data)
-        config.save(config_path)
-        return config.to_dict()
     config = Config.from_dict(DEFAULT_SETTINGS)
     config.save(config_path)
     return config.to_dict()
@@ -189,7 +173,3 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
         json.dump(data, handle, indent=4)
         handle.write("\n")
 
-
-def _read_yaml(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle) or {}
