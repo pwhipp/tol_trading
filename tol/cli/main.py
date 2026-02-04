@@ -11,7 +11,6 @@ from tol.cli.handlers.portfolio import (
     handle_portfolio_summary,
 )
 from tol.cli.handlers.status import handle_status
-from tol.cli.handlers.test import handle_test
 
 OPENAI_LLM_MODELS = (
     "gpt-5",
@@ -163,7 +162,6 @@ def main() -> None:
         "describe": handle_describe,
         "generate": handle_generate,
         "config": handle_config,
-        "test": handle_test,
         "resume": handle_resume,
         "status": handle_status,
         "cancel": handle_cancel,
