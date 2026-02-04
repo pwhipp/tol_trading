@@ -18,3 +18,4 @@ dependencies = [
 
 [project.scripts]
 tol = "tol.cli.main:main"
+fakebroker = "fakebroker.cli.main:main"
