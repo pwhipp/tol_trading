@@ -8,11 +8,6 @@ from tol.cli.handlers.config.set import handle_config_set
 from tol.cli.handlers.config.show import handle_config_show
 from tol.cli.handlers.describe import handle_describe
 from tol.cli.handlers.execute.cancel import handle_execute_cancel
-from tol.cli.handlers.execute.dry_run import (
-    handle_execute_dry_run_broker,
-    handle_execute_dry_run_local,
-    handle_execute_dry_run_portfolio,
-)
 from tol.cli.handlers.execute.resume import handle_execute_resume
 from tol.cli.handlers.execute.run import handle_execute_run
 from tol.cli.handlers.execute.status import handle_execute_status
@@ -67,27 +62,6 @@ PARSER_MAP = [
                             "help": "Execution ID (defaults to the active execution)",
                         },
                     }
-                ],
-            ),
-            ParserCommand(
-                name="dry_run",
-                help="Validate execution inputs without submitting orders.",
-                subcommands=[
-                    ParserCommand(
-                        name="local",
-                        help="Plan actions from stdin and print local execution order.",
-                        handler=handle_execute_dry_run_local,
-                    ),
-                    ParserCommand(
-                        name="portfolio",
-                        help="Validate actions against a live portfolio snapshot.",
-                        handler=handle_execute_dry_run_portfolio,
-                    ),
-                    ParserCommand(
-                        name="broker",
-                        help="Validate actions against broker constraints.",
-                        handler=handle_execute_dry_run_broker,
-                    ),
                 ],
             ),
             ParserCommand(

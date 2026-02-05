@@ -98,14 +98,6 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.execution_id, 7)
 
 
-    def test_execute_dry_run_subcommand_parsing(self) -> None:
-        parser = build_parser()
-        args = parser.parse_args(["execute", "dry_run", "broker"])
-
-        self.assertEqual(args.command, "execute")
-        self.assertEqual(args.execute_command, "dry_run")
-        self.assertEqual(args.dry_run_command, "broker")
-
     def test_config_default_subcommand_is_show(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["config"])
@@ -125,10 +117,6 @@ class TestCliMain(unittest.TestCase):
 
         self.assertIn("run", help_text)
         self.assertIn("status", help_text)
-        self.assertIn("dry_run", help_text)
-        self.assertIn("local", help_text)
-        self.assertIn("portfolio", help_text)
-        self.assertIn("broker", help_text)
 
     def test_status_command_without_db_schema(self) -> None:
         import os
