@@ -37,8 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     execute_parser = subparsers.add_parser(
         "execute",
-        help="Execute a TOL orchestration from stdin",
-        description="Execute a TOL orchestration from stdin.",
+        help="Execute a TOL document from stdin, or get the status/cancel a running document.",
+        description="Execute a TOL document from stdin, or get the status/cancel a running document.",
     )
     execute_subparsers = execute_parser.add_subparsers(
         dest="execute_command",
@@ -109,7 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     config_parser = subparsers.add_parser(
         "config",
-        help="View or update LLM configuration settings",
+        help="View or update configuration settings",
     )
     config_subparsers = config_parser.add_subparsers(dest="config_command")
 
@@ -124,22 +124,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     set_parser.add_argument("key", help="Setting name to update")
     set_parser.add_argument("value", help="Setting value")
-
-    test_parser = subparsers.add_parser(
-        "test",
-        help="Run a lightweight CLI smoke test",
-    )
-
-    test_parser.add_argument(
-        "--echo",
-        action="store_true",
-        help="Echo a confirmation message to stdout.",
-    )
-
-    resume_parser = subparsers.add_parser(
-        "resume",
-        help="Resume the active execution",
-    )
 
     portfolio_parser = subparsers.add_parser(
         "portfolio",
