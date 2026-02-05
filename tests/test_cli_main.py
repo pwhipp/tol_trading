@@ -29,7 +29,7 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.command, "portfolio")
         self.assertEqual(args.portfolio_command, "orders")
 
-    def test_execute_command_default_dry_run(self) -> None:
+    def test_execute_command_default_run(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["execute"])
 
@@ -97,12 +97,45 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.execute_command, "cancel")
         self.assertEqual(args.execution_id, 7)
 
+
+    def test_execute_dry_run_subcommand_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["execute", "dry_run", "broker"])
+
+        self.assertEqual(args.command, "execute")
+        self.assertEqual(args.execute_command, "dry_run")
+        self.assertEqual(args.dry_run_command, "broker")
+
+    def test_config_default_subcommand_is_show(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["config"])
+
+        self.assertEqual(args.command, "config")
+        self.assertEqual(args.config_command, "show")
+
+    def test_execute_help_lists_nested_subcommands(self) -> None:
+        parser = build_parser()
+        subparsers_action = next(
+            action
+            for action in parser._actions
+            if isinstance(action, argparse._SubParsersAction)
+        )
+        execute_parser = subparsers_action.choices["execute"]
+        help_text = execute_parser.format_help()
+
+        self.assertIn("run", help_text)
+        self.assertIn("status", help_text)
+        self.assertIn("dry_run", help_text)
+        self.assertIn("local", help_text)
+        self.assertIn("portfolio", help_text)
+        self.assertIn("broker", help_text)
+
     def test_status_command_without_db_schema(self) -> None:
         import os
         import tempfile
 
         from tol import config as app_config
-        from tol.cli.handlers.status import handle_status
+        from tol.cli.handlers.execute.status import handle_execute_status
 
         with tempfile.TemporaryDirectory() as temp_dir:
             os.environ["XDG_CONFIG_HOME"] = temp_dir
@@ -112,7 +145,7 @@ class TestCliMain(unittest.TestCase):
             updated.save()
             try:
                 args = build_parser().parse_args(["execute", "status"])
-                handle_status(args)
+                handle_execute_status(args)
             finally:
                 os.environ.pop("XDG_CONFIG_HOME", None)
 

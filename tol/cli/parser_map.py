@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from dataclasses import dataclass, field
+
+from tol.cli.handlers.config.get import handle_config_get
+from tol.cli.handlers.config.set import handle_config_set
+from tol.cli.handlers.config.show import handle_config_show
+from tol.cli.handlers.describe import handle_describe
+from tol.cli.handlers.execute.cancel import handle_execute_cancel
+from tol.cli.handlers.execute.dry_run import (
+    handle_execute_dry_run_broker,
+    handle_execute_dry_run_local,
+    handle_execute_dry_run_portfolio,
+)
+from tol.cli.handlers.execute.resume import handle_execute_resume
+from tol.cli.handlers.execute.run import handle_execute_run
+from tol.cli.handlers.execute.status import handle_execute_status
+from tol.cli.handlers.generate import handle_generate
+from tol.cli.handlers.portfolio.orders import handle_portfolio_orders
+from tol.cli.handlers.portfolio.summary import handle_portfolio_summary
+
+
+OPENAI_LLM_MODELS = (
+    "gpt-5",
+    "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-4o-mini",
+    "gpt-4o",
+    "gpt-4.1-mini",
+    "gpt-4.1",
+)
+
+
+@dataclass
+class ParserCommand:
+    name: str
+    help: str
+    description: str | None = None
+    handler: Callable | None = None
+    arguments: list[dict] = field(default_factory=list)
+    subcommands: list["ParserCommand"] = field(default_factory=list)
+    default_subcommand: str | None = None
+
+
+PARSER_MAP = [
+    ParserCommand(
+        name="execute",
+        help="Execute, inspect, and control TOL executions.",
+        description="Execute, inspect, and control TOL executions.",
+        subcommands=[
+            ParserCommand(
+                name="run",
+                help="Execute a TOL orchestration from stdin.",
+                handler=handle_execute_run,
+            ),
+            ParserCommand(
+                name="status",
+                help="Show execution status.",
+                handler=handle_execute_status,
+                arguments=[
+                    {
+                        "flags": ["execution_id"],
+                        "kwargs": {
+                            "nargs": "?",
+                            "type": int,
+                            "help": "Execution ID (defaults to the active execution)",
+                        },
+                    }
+                ],
+            ),
+            ParserCommand(
+                name="dry_run",
+                help="Validate execution inputs without submitting orders.",
+                subcommands=[
+                    ParserCommand(
+                        name="local",
+                        help="Plan actions from stdin and print local execution order.",
+                        handler=handle_execute_dry_run_local,
+                    ),
+                    ParserCommand(
+                        name="portfolio",
+                        help="Validate actions against a live portfolio snapshot.",
+                        handler=handle_execute_dry_run_portfolio,
+                    ),
+                    ParserCommand(
+                        name="broker",
+                        help="Validate actions against broker constraints.",
+                        handler=handle_execute_dry_run_broker,
+                    ),
+                ],
+            ),
+            ParserCommand(
+                name="cancel",
+                help="Cancel an execution.",
+                handler=handle_execute_cancel,
+                arguments=[
+                    {
+                        "flags": ["execution_id"],
+                        "kwargs": {
+                            "nargs": "?",
+                            "type": int,
+                            "help": "Execution ID (defaults to the active execution)",
+                        },
+                    }
+                ],
+            ),
+            ParserCommand(
+                name="resume",
+                help="Resume the active execution.",
+                handler=handle_execute_resume,
+            ),
+        ],
+        default_subcommand="run",
+    ),
+    ParserCommand(
+        name="describe",
+        help="Describe a TOL document from stdin using the LLM.",
+        handler=handle_describe,
+        arguments=[
+            {
+                "flags": ["--llm-model"],
+                "kwargs": {
+                    "dest": "llm_model",
+                    "choices": OPENAI_LLM_MODELS,
+                    "help": (
+                        "Override the LLM model for describing the document. "
+                        "Defaults to the configured model."
+                    ),
+                },
+            }
+        ],
+    ),
+    ParserCommand(
+        name="generate",
+        help="Generate a TOL document from stdin using the LLM.",
+        handler=handle_generate,
+        arguments=[
+            {
+                "flags": ["--echo"],
+                "kwargs": {
+                    "action": "store_true",
+                    "help": "Echo generated output to stderr.",
+                },
+            },
+            {
+                "flags": ["--llm-model"],
+                "kwargs": {
+                    "dest": "llm_model",
+                    "choices": OPENAI_LLM_MODELS,
+                    "help": (
+                        "Override the LLM model for generating the document. "
+                        "Defaults to the configured model."
+                    ),
+                },
+            },
+        ],
+    ),
+    ParserCommand(
+        name="config",
+        help="View or update configuration settings.",
+        subcommands=[
+            ParserCommand(
+                name="show",
+                help="Show current configuration settings.",
+                handler=handle_config_show,
+            ),
+            ParserCommand(
+                name="get",
+                help="Get a configuration setting.",
+                handler=handle_config_get,
+                arguments=[
+                    {
+                        "flags": ["key"],
+                        "kwargs": {"help": "Setting name to retrieve"},
+                    }
+                ],
+            ),
+            ParserCommand(
+                name="set",
+                help="Set a configuration setting.",
+                handler=handle_config_set,
+                arguments=[
+                    {
+                        "flags": ["key"],
+                        "kwargs": {"help": "Setting name to update"},
+                    },
+                    {
+                        "flags": ["value"],
+                        "kwargs": {"help": "Setting value"},
+                    },
+                ],
+            ),
+        ],
+        default_subcommand="show",
+    ),
+    ParserCommand(
+        name="portfolio",
+        help="Inspect portfolio holdings and orders.",
+        subcommands=[
+            ParserCommand(
+                name="summary",
+                help="Summarize portfolio holdings and pricing.",
+                handler=handle_portfolio_summary,
+            ),
+            ParserCommand(
+                name="orders",
+                help="List open broker orders.",
+                handler=handle_portfolio_orders,
+            ),
+        ],
+    ),
+]

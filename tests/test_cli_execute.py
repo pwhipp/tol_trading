@@ -6,9 +6,9 @@ from pathlib import Path
 import yaml
 
 from tol import config as app_config
-from tol.cli.handlers.execute import handle_execute
-from tol.cli.handlers.resume import handle_resume
-from tol.cli.handlers.execution_helpers import resolve_db_path
+from tol.cli.handlers.execute.run import handle_execute_run
+from tol.cli.handlers.execute.resume import handle_execute_resume
+from tol.cli.handlers.helpers.execution import resolve_db_path
 from tol.cli.main import build_parser
 from tol.execution.broker import FakeBrokerAPI
 from tol.execution.engine import ExecutionEngine
@@ -45,7 +45,7 @@ def test_execute_outputs_status_yaml(tmp_path: Path, capsys, monkeypatch) -> Non
     monkeypatch.setattr("sys.stdin", io.StringIO(_tol_doc_text()))
 
     args = build_parser().parse_args(["execute", "run"])
-    handle_execute(args)
+    handle_execute_run(args)
 
     output = capsys.readouterr().out
     payload = yaml.safe_load(output)
@@ -71,7 +71,7 @@ def test_resume_outputs_status_yaml(tmp_path: Path, capsys, monkeypatch) -> None
     engine.advance_execution(execution_id)
 
     args = build_parser().parse_args(["execute", "resume"])
-    handle_resume(args)
+    handle_execute_resume(args)
 
     output = capsys.readouterr().out
     payload = yaml.safe_load(output)

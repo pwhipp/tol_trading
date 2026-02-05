@@ -7,7 +7,7 @@ from typing import Iterable, Optional
 
 from tol.ibkr.gateway import IBKRGateway
 from tol.exchange import resolve_exchange_currency
-from tol.cli.handlers.pending_trades import (
+from tol.cli.handlers.helpers.pending_trades import (
     PendingTrade,
     format_pending_trade,
     normalize_pending_trades,

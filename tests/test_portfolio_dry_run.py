@@ -1,13 +1,13 @@
 from decimal import Decimal
 import unittest
 
-from tol.cli.handlers.portfolio_dry_run import (
+from tol.cli.handlers.execute.portfolio_dry_run import (
     _derive_reservations,
     build_snapshot,
     evaluate_actions,
     normalize_quantity,
 )
-from tol.cli.handlers.pending_trades import normalize_pending_trades
+from tol.cli.handlers.helpers.pending_trades import normalize_pending_trades
 from tol.parser.planner import plan_actions
 
 
