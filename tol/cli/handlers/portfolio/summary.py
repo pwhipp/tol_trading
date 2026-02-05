@@ -74,7 +74,7 @@ def _normalize_snapshot(snapshot: dict) -> tuple[dict[str, Decimal], list[dict]]
         cash_by_currency = {
             currency: Decimal(str(value)) for currency, value in cash.items()
         }
-        return cash_by_currency, positions
+        return cash_by_currency, _normalize_positions(positions)
 
     portfolio = snapshot.get("portfolio", {})
     cash = portfolio.get("cash", {})
@@ -82,4 +82,16 @@ def _normalize_snapshot(snapshot: dict) -> tuple[dict[str, Decimal], list[dict]]
     cash_by_currency = {
         currency: Decimal(str(value)) for currency, value in cash.items()
     }
-    return cash_by_currency, positions
+    return cash_by_currency, _normalize_positions(positions)
+
+
+def _normalize_positions(positions: list[dict]) -> list[dict]:
+    normalized_positions: list[dict] = []
+    for position in positions:
+        normalized_position = dict(position)
+        normalized_position["market_value"] = Decimal(
+            str(normalized_position.get("market_value", 0))
+        )
+        normalized_positions.append(normalized_position)
+
+    return normalized_positions
