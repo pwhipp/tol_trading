@@ -12,8 +12,9 @@ from tol.cli.handlers.execute.resume import handle_execute_resume
 from tol.cli.handlers.execute.run import handle_execute_run
 from tol.cli.handlers.execute.status import handle_execute_status
 from tol.cli.handlers.generate import handle_generate
-from tol.cli.handlers.portfolio.orders import handle_portfolio_orders
-from tol.cli.handlers.portfolio.summary import handle_portfolio_summary
+from tol.cli.handlers.broker.orders import handle_broker_orders
+from tol.cli.handlers.broker.price import handle_broker_price
+from tol.cli.handlers.broker.summary import handle_broker_summary
 
 
 OPENAI_LLM_MODELS = (
@@ -169,18 +170,41 @@ PARSER_MAP = [
         default_subcommand="show",
     ),
     ParserCommand(
-        name="portfolio",
-        help="Inspect portfolio holdings and orders.",
+        name="broker",
+        help="Inspect broker account holdings and orders.",
+        description="Inspect broker account holdings and orders.",
         subcommands=[
             ParserCommand(
                 name="summary",
-                help="Summarize portfolio holdings and pricing.",
-                handler=handle_portfolio_summary,
+                help="Summarize broker account holdings and pricing.",
+                handler=handle_broker_summary,
             ),
             ParserCommand(
                 name="orders",
                 help="List open broker orders.",
-                handler=handle_portfolio_orders,
+                handler=handle_broker_orders,
+            ),
+            ParserCommand(
+                name="price",
+                help="Fetch broker price snapshots for one or more tickers.",
+                handler=handle_broker_price,
+                arguments=[
+                    {
+                        "flags": ["tickers"],
+                        "kwargs": {
+                            "nargs": "+",
+                            "help": "Ticker(s), optionally with .EXCHANGE suffix",
+                        },
+                    },
+                    {
+                        "flags": ["--watch"],
+                        "kwargs": {
+                            "choices": ("reset", "add"),
+                            "default": "reset",
+                            "help": "Update broker_watched_tickers using reset or add mode",
+                        },
+                    },
+                ],
             ),
         ],
     ),

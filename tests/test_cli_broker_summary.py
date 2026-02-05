@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from tol.cli.handlers.portfolio.summary import _normalize_snapshot
+from tol.cli.handlers.broker.summary import _normalize_snapshot
 
 
 def test_normalize_snapshot_converts_top_level_position_market_value() -> None:

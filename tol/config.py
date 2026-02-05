@@ -29,6 +29,7 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     "tif": {"default": "GTC", "parser": str},
     "default_exchange": {"default": None, "parser": str},
     "default_currency": {"default": None, "parser": str},
+    "broker_watched_tickers": {"default": [], "parser": list},
 }
 
 DEFAULT_SETTINGS: dict[str, Any] = {
@@ -139,6 +140,8 @@ def _normalize_value(key: str, value: Any) -> Any:
         return normalized
     if key in {"default_exchange", "default_currency"}:
         return _normalize_optional_code(value)
+    if key == "broker_watched_tickers":
+        return _normalize_tickers(value)
     if key in {"usage_log_path", "api_log_path"}:
         return Path(value) if value else None
     parser = CONFIG_PARAMS[key]["parser"]
@@ -151,6 +154,25 @@ def _normalize_optional_code(value: Any) -> str | None:
     text = str(value).strip().upper()
     return text or None
 
+
+
+
+def _normalize_tickers(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        candidates = [value]
+    elif isinstance(value, list):
+        candidates = value
+    else:
+        raise ValueError("broker_watched_tickers must be a list of strings")
+
+    normalized: list[str] = []
+    for ticker in candidates:
+        cleaned = str(ticker).strip().upper()
+        if cleaned:
+            normalized.append(cleaned)
+    return normalized
 
 def _serialize_value(key: str, value: Any) -> Any:
     if key in {"usage_log_path", "api_log_path"} and value is not None:
