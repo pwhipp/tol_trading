@@ -25,9 +25,11 @@ def test_fakebroker_closed_market_submission(tmp_path):
 
     updated = state_manager.load()
     order = updated["orders"][submission.broker_order_id]
-    assert order["status"] == "FAILED"
-    assert order["failure_reason"] == "MARKET_CLOSED"
-    assert order["trade"]["status"] == "FAILED"
+    assert order["status"] == "SUBMITTED"
+    assert order["failure_reason"] is None
+    assert order["pending_reason"] == "MARKET_CLOSED"
+    assert order["trade"]["status"] == "SUBMITTED"
+    assert order["trade"]["pending_reason"] == "MARKET_CLOSED"
 
 
 def test_fakebroker_fill_buy_clamps_to_cash(tmp_path):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -31,9 +31,11 @@ class ExecutionEngine:
         self,
         db_path: Path | str,
         broker_api: BrokerAPI | None = None,
+        tif: str | None = None,
     ) -> None:
         self._store = ExecutionStore(db_path)
         self._broker_api = broker_api
+        self._tif = _normalize_tif(tif)
 
     def start_execution(self, tol_document: dict[str, Any], broker_api: BrokerAPI) -> int:
         self._broker_api = broker_api
@@ -203,18 +205,38 @@ class ExecutionEngine:
                 "action_type": action.action_type,
                 "symbol": action.symbol,
                 "quantity": float(quantity),
+                "tif": self._tif,
             }
-            submission = broker_api.submit_order(order_spec)
-            trade_json = json.dumps(submission.trade)
-            self._store.insert_order(
+            try:
+                submission = broker_api.submit_order(order_spec)
+            except Exception:
+                self._store.update_action_status(row["id"], "FAILED")
+                continue
+            trade_payload = submission.trade or {}
+            if not isinstance(trade_payload, dict):
+                trade_payload = {}
+            submission_status = _normalize_submission_status(trade_payload)
+            filled_qty = _coerce_decimal(trade_payload.get("filled_qty"))
+            trade_json = json.dumps(trade_payload)
+            order_id = self._store.insert_order(
                 row["id"],
                 submission.broker_order_id,
-                "SUBMITTED",
+                submission_status,
                 float(quantity),
-                0.0,
+                float(filled_qty),
                 trade_json,
             )
-            self._store.update_action_status(row["id"], "SUBMITTED")
+            self._store.update_action_status(
+                row["id"],
+                _resolve_action_status(submission_status),
+            )
+            if filled_qty > 0:
+                self._store.insert_fill(
+                    order_id,
+                    float(filled_qty),
+                    trade_payload.get("avg_fill_price"),
+                    _utc_now(),
+                )
 
     def _resolve_quantity(self, action: Any) -> Decimal:
         if action.quantity is None:
@@ -252,3 +274,44 @@ class ExecutionEngine:
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _coerce_decimal(value: Any) -> Decimal:
+    if value is None:
+        return Decimal("0")
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
+
+
+def _normalize_submission_status(trade_payload: dict[str, Any]) -> str:
+    raw_status = str(trade_payload.get("status", "")).strip().upper()
+    if not raw_status:
+        return "SUBMITTED"
+    if raw_status in {"FILLED", "PARTIAL", "SUBMITTED"}:
+        return raw_status
+    if raw_status == "PRESUBMITTED":
+        return "SUBMITTED"
+    if raw_status in {"CANCELLED", "API CANCELED", "CANCELED"}:
+        return "CANCELLED"
+    if raw_status in {"REJECTED", "INACTIVE", "PENDINGCANCEL"}:
+        return "FAILED"
+    if raw_status == "EXPIRED":
+        return "EXPIRED"
+    return raw_status
+
+
+def _resolve_action_status(submission_status: str) -> str:
+    if submission_status in ACTION_TERMINAL:
+        return submission_status
+    if submission_status == "PARTIAL":
+        return "PARTIAL"
+    if submission_status == "FILLED":
+        return "FILLED"
+    return "SUBMITTED"
+
+
+def _normalize_tif(tif: str | None) -> str:
+    normalized = str(tif).strip().upper() if tif is not None else ""
+    return normalized or "GTC"

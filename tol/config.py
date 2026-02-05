@@ -26,6 +26,7 @@ CONFIG_PARAMS: dict[str, dict[str, Any]] = {
     "usage_log_level": {"default": "INFO", "parser": str},
     "api_log_path": {"default": "llm_api.log", "parser": str},
     "api_log_level": {"default": "INFO", "parser": str},
+    "tif": {"default": "GTC", "parser": str},
     "default_exchange": {"default": None, "parser": str},
     "default_currency": {"default": None, "parser": str},
 }
@@ -131,6 +132,11 @@ def _normalize_value(key: str, value: Any) -> Any:
         if normalized not in {"IBKRBrokerAPI", "FakeBrokerAPI"}:
             raise ValueError("broker must be 'IBKRBrokerAPI' or 'FakeBrokerAPI'")
         return normalized
+    if key == "tif":
+        normalized = str(value).strip().upper()
+        if not normalized:
+            raise ValueError("tif must be a non-empty string")
+        return normalized
     if key in {"default_exchange", "default_currency"}:
         return _normalize_optional_code(value)
     if key in {"usage_log_path", "api_log_path"}:
@@ -172,4 +178,3 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=4)
         handle.write("\n")
-

@@ -193,9 +193,9 @@ class ExecutionStore:
         submitted_qty: float,
         filled_qty: float,
         trade_json: str | None,
-    ) -> None:
+    ) -> int:
         with self.transaction() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT INTO "order"
                     (
@@ -217,6 +217,7 @@ class ExecutionStore:
                     trade_json,
                 ),
             )
+            return int(cursor.lastrowid)
 
     def insert_fill(
         self,

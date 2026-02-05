@@ -37,6 +37,8 @@ def normalize_pending_trades(
             continue
         quantity = _coerce_decimal(trade.get("quantity"))
         if quantity is None or quantity <= 0:
+            quantity = _coerce_decimal(trade.get("submitted_qty"))
+        if quantity is None or quantity <= 0:
             continue
         status = str(trade.get("status", "")).strip() or "Unknown"
         price = _coerce_decimal(trade.get("price"))

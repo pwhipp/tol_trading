@@ -46,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     execute_parser.set_defaults(execute_command="run")
     execute_subparsers.add_parser(
         "run",
-        help="Execute a TOL orchestration from stdin",
+        help="Execute a TOL orchestration from stdin.",
     )
     execute_status_parser = execute_subparsers.add_parser(
         "status",
@@ -67,6 +67,10 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         type=int,
         help="Execution ID (defaults to the active execution)",
+    )
+    execute_subparsers.add_parser(
+        "resume",
+        help="Resume the active execution",
     )
 
     describe_parser = subparsers.add_parser(
@@ -154,11 +158,11 @@ def main() -> None:
             "run": handle_execute,
             "status": handle_status,
             "cancel": handle_cancel,
+            "resume": handle_resume,
         },
         "describe": handle_describe,
         "generate": handle_generate,
         "config": handle_config,
-        "resume": handle_resume,
         "portfolio": {
             "summary": handle_portfolio_summary,
             "orders": handle_portfolio_orders,
