@@ -135,13 +135,13 @@ class FakeBrokerAPI(BrokerAPI):
         symbol = FakeBrokerState.normalize_symbol(order_spec.get("symbol", ""))
         _, exchange = FakeBrokerState.split_symbol(symbol)
         is_closed = self._state.is_market_closed(state, exchange)
-        status = "FAILED" if is_closed else "SUBMITTED"
-        failure_reason = "MARKET_CLOSED" if is_closed else None
+        status = "SUBMITTED"
+        pending_reason = "MARKET_CLOSED" if is_closed else None
         trade_snapshot = _build_fake_trade_snapshot(
             order_spec,
             broker_order_id,
             status=status,
-            failure_reason=failure_reason,
+            pending_reason=pending_reason,
         )
         orders[broker_order_id] = {
             "status": status,
@@ -149,7 +149,8 @@ class FakeBrokerAPI(BrokerAPI):
             "filled_qty": 0.0,
             "trade": trade_snapshot,
             "average_price": None,
-            "failure_reason": failure_reason,
+            "failure_reason": None,
+            "pending_reason": pending_reason,
         }
         self._state.save(state)
         return OrderSubmission(
@@ -230,6 +231,7 @@ def _build_fake_trade_snapshot(
     broker_order_id: str,
     status: str = "SUBMITTED",
     failure_reason: str | None = None,
+    pending_reason: str | None = None,
 ) -> dict[str, Any]:
     quantity = Decimal(str(order_spec.get("quantity", 0)))
     snapshot = {
@@ -244,6 +246,8 @@ def _build_fake_trade_snapshot(
     }
     if failure_reason:
         snapshot["failure_reason"] = failure_reason
+    if pending_reason:
+        snapshot["pending_reason"] = pending_reason
     return snapshot
 
 

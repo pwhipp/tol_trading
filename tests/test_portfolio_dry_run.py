@@ -270,6 +270,24 @@ class TestPortfolioDryRun(unittest.TestCase):
         self.assertFalse(warnings)
         self.assertEqual(reservations.cash_by_currency["USD"], Decimal("600"))
 
+    def test_pending_buy_uses_submitted_quantity(self) -> None:
+        pending = normalize_pending_trades(
+            [
+                {
+                    "symbol": "VOO.NYSE",
+                    "action_type": "buy",
+                    "submitted_qty": Decimal("3"),
+                    "status": "Submitted",
+                    "price": Decimal("200"),
+                    "currency": "USD",
+                    "order_type": "LMT",
+                }
+            ]
+        )
+        reservations, warnings = _derive_reservations(pending)
+        self.assertFalse(warnings)
+        self.assertEqual(reservations.cash_by_currency["USD"], Decimal("600"))
+
     def test_pending_sell_reserves_shares(self) -> None:
         pending = normalize_pending_trades(
             [
