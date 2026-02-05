@@ -16,23 +16,17 @@ class IBKRGateway:
         self.ib = IB()
 
     def connect(self):
+        host = "127.0.0.1"
         port = 4002 if self.mode == "paper" else 4001
         if self.ib.isConnected():
             self.ib.disconnect()
         try:
             self.ib.connect(
-                "127.0.0.1",
+                host,
                 port=port,
                 clientId=self.client_id,
                 timeout=5,
             )
-        except ConnectionRefusedError as exc:
-            endpoint = ("127.0.0.1", port)
-            if endpoint not in _REFUSED_ENDPOINTS:
-                _REFUSED_ENDPOINTS.add(endpoint)
-                print(f"API connection failed: {exc!r}")
-                print("Make sure API port on TWS/IBG is open")
-            raise SystemExit(1) from None
         except RequestError as exc:
             if exc.code == 326:
                 print(

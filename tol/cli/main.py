@@ -1,3 +1,4 @@
+import sys
 import argparse
 
 from tol.cli.handlers.config import handle_config
@@ -176,11 +177,9 @@ def main() -> None:
 
     handler = command_map.get(args.command, handle_error)
     if isinstance(handler, dict):
-        sub_handler = handler.get(args.portfolio_command)
-        if sub_handler is None:
-            parser.error(
-                f"Unknown command - portfolio {args.portfolio_command}"
-            )
-        sub_handler(args)
-    else:
+        handler = handler.get(args.portfolio_command)
+
+    try:
         handler(args)
+    except ConnectionRefusedError:  # gateway reports the connection error to stderr already
+        sys.exit(1)
