@@ -26,6 +26,7 @@ class IBKRBrokerAPI(BrokerAPI):
             quantity = Decimal(str(order_spec["quantity"]))
             side = "BUY" if action_type == "buy" else "SELL"
             order = MarketOrder(side, float(quantity))
+            order.tif = _normalize_tif(order_spec.get("tif"))
             trade = gateway.ib.placeOrder(contract, order)
             broker_order_id = str(trade.order.orderId)
             trade_snapshot = _build_trade_snapshot(
@@ -153,4 +154,10 @@ def _build_trade_snapshot(
         "symbol": order_spec.get("symbol"),
         "submitted_qty": float(Decimal(str(order_spec.get("quantity", 0)))),
         "order_type": order_type,
+        "tif": _normalize_tif(order_spec.get("tif")),
     }
+
+
+def _normalize_tif(value: Any) -> str:
+    normalized = str(value).strip().upper() if value is not None else ""
+    return normalized or "GTC"

@@ -24,15 +24,17 @@ def handle_status(args) -> None:
     broker_api = get_broker_api(mode)
     engine = ExecutionEngine(db_path, broker_api)
     status = engine.get_status(execution_id)
-    print(
-        yaml.safe_dump(
-            _format_status_payload(status),
-            sort_keys=False,
-        )
+    print(render_status(status))
+
+
+def render_status(status) -> str:
+    return yaml.safe_dump(
+        format_status_payload(status),
+        sort_keys=False,
     )
 
 
-def _format_status_payload(status) -> dict:
+def format_status_payload(status) -> dict:
     execution = dict(status.execution)
     tol_document = _parse_json_mapping(execution.get("tol_document_json"))
     if tol_document is not None:

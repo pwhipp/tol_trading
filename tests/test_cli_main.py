@@ -74,18 +74,12 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.config_command, "get")
         self.assertEqual(args.key, "model")
 
-    def test_test_command_parsing(self) -> None:
+    def test_execute_resume_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["test", "--echo"])
+        args = parser.parse_args(["execute", "resume"])
 
-        self.assertEqual(args.command, "test")
-        self.assertTrue(args.echo)
-
-    def test_resume_command_parsing(self) -> None:
-        parser = build_parser()
-        args = parser.parse_args(["resume"])
-
-        self.assertEqual(args.command, "resume")
+        self.assertEqual(args.command, "execute")
+        self.assertEqual(args.execute_command, "resume")
 
     def test_execute_status_command_parsing(self) -> None:
         parser = build_parser()

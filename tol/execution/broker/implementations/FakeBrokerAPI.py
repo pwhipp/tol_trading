@@ -243,12 +243,18 @@ def _build_fake_trade_snapshot(
         "symbol": order_spec.get("symbol"),
         "submitted_qty": float(quantity),
         "order_type": "MKT",
+        "tif": _normalize_tif(order_spec.get("tif")),
     }
     if failure_reason:
         snapshot["failure_reason"] = failure_reason
     if pending_reason:
         snapshot["pending_reason"] = pending_reason
     return snapshot
+
+
+def _normalize_tif(value: Any) -> str:
+    normalized = str(value).strip().upper() if value is not None else ""
+    return normalized or "GTC"
 
 
 def _has_closed_market_orders(
