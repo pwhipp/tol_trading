@@ -58,7 +58,7 @@ def test_status_outputs_yaml_with_parsed_json(
     )
     engine.advance_execution(execution_id)
 
-    args = build_parser().parse_args(["status", str(execution_id)])
+    args = build_parser().parse_args(["execute", "status", str(execution_id)])
     handle_status(args)
 
     output = capsys.readouterr().out

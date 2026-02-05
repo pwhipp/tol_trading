@@ -13,6 +13,7 @@ class TestCliMain(unittest.TestCase):
         ])
 
         self.assertEqual(args.command, "execute")
+        self.assertEqual(args.execute_command, "run")
 
     def test_portfolio_summary_command_parsing(self) -> None:
         parser = build_parser()
@@ -33,6 +34,7 @@ class TestCliMain(unittest.TestCase):
         args = parser.parse_args(["execute"])
 
         self.assertEqual(args.command, "execute")
+        self.assertEqual(args.execute_command, "run")
 
     def test_execute_help_mentions_stdin(self) -> None:
         parser = build_parser()
@@ -45,6 +47,7 @@ class TestCliMain(unittest.TestCase):
         help_text = execute_parser.format_help()
 
         self.assertIn("usage: tol execute", help_text)
+        self.assertIn("Execute a TOL orchestration from stdin.", help_text)
 
     def test_describe_command_parsing(self) -> None:
         parser = build_parser()
@@ -84,18 +87,20 @@ class TestCliMain(unittest.TestCase):
 
         self.assertEqual(args.command, "resume")
 
-    def test_status_command_parsing(self) -> None:
+    def test_execute_status_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["status", "12"])
+        args = parser.parse_args(["execute", "status", "12"])
 
-        self.assertEqual(args.command, "status")
+        self.assertEqual(args.command, "execute")
+        self.assertEqual(args.execute_command, "status")
         self.assertEqual(args.execution_id, 12)
 
-    def test_cancel_command_parsing(self) -> None:
+    def test_execute_cancel_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["cancel", "7"])
+        args = parser.parse_args(["execute", "cancel", "7"])
 
-        self.assertEqual(args.command, "cancel")
+        self.assertEqual(args.command, "execute")
+        self.assertEqual(args.execute_command, "cancel")
         self.assertEqual(args.execution_id, 7)
 
     def test_status_command_without_db_schema(self) -> None:
@@ -112,7 +117,7 @@ class TestCliMain(unittest.TestCase):
             updated = app_config.set_setting(settings, "broker", "FakeBrokerAPI")
             updated.save()
             try:
-                args = build_parser().parse_args(["status"])
+                args = build_parser().parse_args(["execute", "status"])
                 handle_status(args)
             finally:
                 os.environ.pop("XDG_CONFIG_HOME", None)
