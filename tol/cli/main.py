@@ -38,6 +38,35 @@ def build_parser() -> argparse.ArgumentParser:
     execute_parser = subparsers.add_parser(
         "execute",
         help="Execute a TOL orchestration from stdin",
+        description="Execute a TOL orchestration from stdin.",
+    )
+    execute_subparsers = execute_parser.add_subparsers(
+        dest="execute_command",
+    )
+    execute_parser.set_defaults(execute_command="run")
+    execute_subparsers.add_parser(
+        "run",
+        help="Execute a TOL orchestration from stdin",
+    )
+    execute_status_parser = execute_subparsers.add_parser(
+        "status",
+        help="Show execution status",
+    )
+    execute_status_parser.add_argument(
+        "execution_id",
+        nargs="?",
+        type=int,
+        help="Execution ID (defaults to the active execution)",
+    )
+    execute_cancel_parser = execute_subparsers.add_parser(
+        "cancel",
+        help="Cancel an execution",
+    )
+    execute_cancel_parser.add_argument(
+        "execution_id",
+        nargs="?",
+        type=int,
+        help="Execution ID (defaults to the active execution)",
     )
 
     describe_parser = subparsers.add_parser(
@@ -112,28 +141,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Resume the active execution",
     )
 
-    status_parser = subparsers.add_parser(
-        "status",
-        help="Show execution status",
-    )
-    status_parser.add_argument(
-        "execution_id",
-        nargs="?",
-        type=int,
-        help="Execution ID (defaults to the active execution)",
-    )
-
-    cancel_parser = subparsers.add_parser(
-        "cancel",
-        help="Cancel an execution",
-    )
-    cancel_parser.add_argument(
-        "execution_id",
-        nargs="?",
-        type=int,
-        help="Execution ID (defaults to the active execution)",
-    )
-
     portfolio_parser = subparsers.add_parser(
         "portfolio",
         help="Inspect portfolio holdings and orders",
@@ -159,13 +166,15 @@ def main() -> None:
     args = parser.parse_args()
 
     command_map = {
-        "execute": handle_execute,
+        "execute": {
+            "run": handle_execute,
+            "status": handle_status,
+            "cancel": handle_cancel,
+        },
         "describe": handle_describe,
         "generate": handle_generate,
         "config": handle_config,
         "resume": handle_resume,
-        "status": handle_status,
-        "cancel": handle_cancel,
         "portfolio": {
             "summary": handle_portfolio_summary,
             "orders": handle_portfolio_orders,
@@ -177,7 +186,10 @@ def main() -> None:
 
     handler = command_map.get(args.command, handle_error)
     if isinstance(handler, dict):
-        handler = handler.get(args.portfolio_command)
+        subcommand = getattr(args, "portfolio_command", None)
+        if subcommand is None:
+            subcommand = getattr(args, "execute_command", None)
+        handler = handler.get(subcommand)
 
     try:
         handler(args)
