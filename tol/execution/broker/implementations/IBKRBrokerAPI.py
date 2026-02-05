@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from ib_insync import MarketOrder
+from ib_insync import MarketOrder, Order
 
 from tol.execution.broker.BrokerAPI import BrokerAPI, OrderStatus, OrderSubmission
 from tol.ibkr.gateway import IBKRGateway
@@ -44,7 +44,9 @@ class IBKRBrokerAPI(BrokerAPI):
         gateway = IBKRGateway(self._mode, self._client_id)
         gateway.connect()
         try:
-            gateway.ib.cancelOrder(int(broker_order_id))
+            order_id = int(str(broker_order_id))
+            order = Order(orderId=order_id)
+            gateway.ib.cancelOrder(order)
         finally:
             gateway.disconnect()
 
