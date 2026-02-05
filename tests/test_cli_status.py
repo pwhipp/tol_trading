@@ -5,8 +5,8 @@ from pathlib import Path
 import yaml
 
 from tol import config as app_config
-from tol.cli.handlers.execution_helpers import resolve_db_path
-from tol.cli.handlers.status import handle_status
+from tol.cli.handlers.helpers.execution import resolve_db_path
+from tol.cli.handlers.execute.status import handle_execute_status
 from tol.cli.main import build_parser
 from tol.execution.broker import FakeBrokerAPI
 from tol.execution.engine import ExecutionEngine
@@ -59,7 +59,7 @@ def test_status_outputs_yaml_with_parsed_json(
     engine.advance_execution(execution_id)
 
     args = build_parser().parse_args(["execute", "status", str(execution_id)])
-    handle_status(args)
+    handle_execute_status(args)
 
     output = capsys.readouterr().out
     payload = yaml.safe_load(output)

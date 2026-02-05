@@ -1,13 +1,14 @@
 import sys
 
-from tol.cli.handlers.execution_helpers import get_broker_api, resolve_db_path
-from tol.cli.handlers.status import render_status
+from tol.cli.handlers.execute.status import render_status
+from tol.cli.handlers.helpers.execution import get_broker_api, resolve_db_path
 from tol.config import get_config
 from tol.execution.engine import ExecutionEngine
 from tol.load import load_tol_text
 
 
-def handle_execute(args) -> None:
+def handle_execute_run(args) -> None:
+    del args
     tol_text = sys.stdin.read()
     if not tol_text.strip():
         print("ERROR: No TOL document provided on stdin.", file=sys.stderr)

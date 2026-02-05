@@ -1,15 +1,16 @@
-from tol.cli.handlers.execution_helpers import (
+from tol.cli.handlers.execute.status import render_status
+from tol.cli.handlers.helpers.execution import (
     find_active_execution_id,
-    lookup_execution_mode,
     get_broker_api,
+    lookup_execution_mode,
     resolve_db_path,
 )
-from tol.cli.handlers.status import render_status
 from tol.config import get_config
 from tol.execution.engine import ExecutionEngine
 
 
-def handle_resume(args) -> None:
+def handle_execute_resume(args) -> None:
+    del args
     db_path = resolve_db_path()
     active_id = find_active_execution_id(db_path)
     if active_id is None:

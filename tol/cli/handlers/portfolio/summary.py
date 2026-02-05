@@ -1,0 +1,85 @@
+from collections import defaultdict
+from decimal import Decimal, ROUND_HALF_UP
+
+from tol.cli.handlers.helpers.execution import get_broker_api
+from tol.config import get_config
+
+
+def handle_portfolio_summary(args) -> None:
+    del args
+    config = get_config()
+    broker_api = get_broker_api(config.mode)
+
+    print("TOL Portfolio Summary")
+    print("----------------------------------------")
+    print(f"Trading mode: {config.mode}")
+    print()
+
+    snapshot = broker_api.get_portfolio_snapshot()
+    cash_by_ccy, positions = _normalize_snapshot(snapshot)
+
+    position_totals: defaultdict[str, Decimal] = defaultdict(Decimal)
+    for position in positions:
+        position_totals[position["currency"]] += position["market_value"]
+
+    portfolio_totals: defaultdict[str, Decimal] = defaultdict(Decimal)
+    for currency, amount in cash_by_ccy.items():
+        portfolio_totals[currency] += amount
+    for currency, amount in position_totals.items():
+        portfolio_totals[currency] += amount
+
+    print("Cash:")
+    for currency in sorted(cash_by_ccy):
+        amount = cash_by_ccy[currency]
+        total = portfolio_totals[currency]
+        print(f"  {currency}: {amount:>12,.2f}   {_pct(amount, total):>6}%")
+
+    print()
+    print("Positions:")
+    for position in sorted(positions, key=lambda item: item["symbol"]):
+        symbol = position["symbol"]
+        quantity = position["quantity"]
+        market_value = position["market_value"]
+        currency = position["currency"]
+        total = portfolio_totals[currency]
+
+        print(
+            f"  {symbol:<5} {int(quantity):>6} shares   "
+            f"≈ {market_value:>12,.2f} {currency}   {_pct(market_value, total):>6}%"
+        )
+
+    print()
+    print("Positions value:")
+    for currency in sorted(portfolio_totals):
+        market_value = position_totals.get(currency, Decimal("0"))
+        total = portfolio_totals[currency]
+        print(f"  {currency}: {market_value:>12,.2f}   {_pct(market_value, total):>6}%")
+
+    print("----------------------------------------")
+
+
+def _pct(value: Decimal, total: Decimal) -> Decimal:
+    if total == 0:
+        return Decimal("0")
+    return (value / total * Decimal("100")).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP,
+    )
+
+
+def _normalize_snapshot(snapshot: dict) -> tuple[dict[str, Decimal], list[dict]]:
+    cash = snapshot.get("cash")
+    positions = snapshot.get("positions")
+    if isinstance(cash, dict) and isinstance(positions, list):
+        cash_by_currency = {
+            currency: Decimal(str(value)) for currency, value in cash.items()
+        }
+        return cash_by_currency, positions
+
+    portfolio = snapshot.get("portfolio", {})
+    cash = portfolio.get("cash", {})
+    positions = portfolio.get("positions", [])
+    cash_by_currency = {
+        currency: Decimal(str(value)) for currency, value in cash.items()
+    }
+    return cash_by_currency, positions

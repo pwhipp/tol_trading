@@ -1,13 +1,13 @@
-from tol.cli.handlers.execution_helpers import (
+from tol.cli.handlers.helpers.execution import (
     find_active_execution_id,
-    lookup_execution_mode,
     get_broker_api,
+    lookup_execution_mode,
     resolve_db_path,
 )
 from tol.execution.engine import ExecutionEngine
 
 
-def handle_cancel(args) -> None:
+def handle_execute_cancel(args) -> None:
     db_path = resolve_db_path()
     execution_id = args.execution_id or find_active_execution_id(db_path)
     if execution_id is None:

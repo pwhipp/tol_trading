@@ -1,4 +1,5 @@
 import math
+import sys
 from collections import defaultdict
 from decimal import Decimal
 from ib_insync import IB, MarketOrder, Stock
@@ -37,6 +38,13 @@ class IBKRGateway:
                 )
             self.ib.disconnect()
             raise
+        except ConnectionRefusedError as exc:
+            print(
+                f"API connection failed: ConnectionRefusedError{exc.args[:2]!r}\n"
+                "Make sure API port on TWS/IBG is open"
+            )
+            self.ib.disconnect()
+            sys.exit(1)
 
     def disconnect(self):
         self.ib.disconnect()
