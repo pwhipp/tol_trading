@@ -38,6 +38,15 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.tickers, ["MSFT"])
         self.assertEqual(args.watch, "reset")
 
+    def test_broker_price_command_parsing_without_tickers(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["broker", "price"])
+
+        self.assertEqual(args.command, "broker")
+        self.assertEqual(args.broker_command, "price")
+        self.assertEqual(args.tickers, [])
+        self.assertEqual(args.watch, "reset")
+
     def test_execute_command_default_run(self) -> None:
         parser = build_parser()
         args = parser.parse_args(["execute"])

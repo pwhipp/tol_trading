@@ -66,3 +66,36 @@ def test_handle_rejects_non_ibkr_broker(monkeypatch) -> None:
         assert str(exc) == "tol broker price is only supported with IBKRBrokerAPI"
     else:
         raise AssertionError("Expected ValueError")
+
+
+def test_resolve_raw_tickers_prefers_cli_values() -> None:
+    args = Namespace(tickers=["MSFT"], watch="reset")
+    config = _StubConfig(broker_watched_tickers=["AAPL.NASDAQ"])
+
+    resolved = BrokerPriceHandler._resolve_raw_tickers(args, config)
+
+    assert resolved == ["MSFT"]
+
+
+def test_resolve_raw_tickers_falls_back_to_watched_tickers() -> None:
+    args = Namespace(tickers=[], watch="reset")
+    config = _StubConfig(broker_watched_tickers=["AAPL.NASDAQ", "MSFT.NYSE"])
+
+    resolved = BrokerPriceHandler._resolve_raw_tickers(args, config)
+
+    assert resolved == ["AAPL.NASDAQ", "MSFT.NYSE"]
+
+
+def test_resolve_raw_tickers_raises_when_no_sources() -> None:
+    args = Namespace(tickers=[], watch="reset")
+    config = _StubConfig(broker_watched_tickers=[])
+
+    try:
+        BrokerPriceHandler._resolve_raw_tickers(args, config)
+    except ValueError as exc:
+        assert (
+            str(exc)
+            == "No tickers supplied. Provide tickers or set broker_watched_tickers in config."
+        )
+    else:
+        raise AssertionError("Expected ValueError")

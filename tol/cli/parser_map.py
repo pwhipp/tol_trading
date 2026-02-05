@@ -192,8 +192,8 @@ PARSER_MAP = [
                     {
                         "flags": ["tickers"],
                         "kwargs": {
-                            "nargs": "+",
-                            "help": "Ticker(s), optionally with .EXCHANGE suffix",
+                            "nargs": "*",
+                            "help": "Ticker(s), optionally with .EXCHANGE suffix. Falls back to broker_watched_tickers.",
                         },
                     },
                     {

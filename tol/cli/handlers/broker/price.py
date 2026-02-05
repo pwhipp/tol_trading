@@ -20,8 +20,9 @@ class BrokerPriceHandler:
     @staticmethod
     def handle(args: Namespace) -> None:
         config = get_config()
+        raw_tickers = BrokerPriceHandler._resolve_raw_tickers(args, config)
         tickers = BrokerPriceHandler._normalize_tickers(
-            args.tickers,
+            raw_tickers,
             config.default_exchange,
         )
         BrokerPriceHandler._persist_watched_tickers(config, tickers, args.watch)
@@ -68,6 +69,21 @@ class BrokerPriceHandler:
                 ],
                 tablefmt="github",
             )
+        )
+
+
+    @staticmethod
+    def _resolve_raw_tickers(args: Namespace, config) -> list[str]:
+        cli_tickers = args.tickers or []
+        if cli_tickers:
+            return cli_tickers
+
+        watched_tickers = config.get("broker_watched_tickers") or []
+        if watched_tickers:
+            return watched_tickers
+
+        raise ValueError(
+            "No tickers supplied. Provide tickers or set broker_watched_tickers in config."
         )
 
     @staticmethod
