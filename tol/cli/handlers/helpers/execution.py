@@ -16,15 +16,15 @@ def resolve_db_path() -> Path:
 
 def get_broker_api(mode: str | None) -> BrokerAPI:
     config = get_config()
-    broker_name = config.broker
+    broker_name = config.broker.api
     config_dir = get_config_path().parent
     broker_map = {
         "FakeBrokerAPI": lambda: FakeBrokerAPI(
             config_dir / "fake_broker_state.yaml"
         ),
         "IBKRBrokerAPI": lambda: IBKRBrokerAPI(
-            mode or config.mode,
-            config.broker_client_id,
+            mode or config.broker.mode,
+            config.broker.client_id,
         ),
     }
     if broker_name not in broker_map:

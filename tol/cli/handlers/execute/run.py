@@ -33,7 +33,7 @@ def handle_execute_run(args: Namespace) -> None:
 
     config = get_config()
     broker_api = get_broker_api(tol_doc.get("mode"))
-    engine = ExecutionEngine(resolve_db_path(), broker_api, tif=config.tif)
+    engine = ExecutionEngine(resolve_db_path(), broker_api, tif=config.execution.tif)
     execution_id = engine.start_execution(tol_doc, broker_api)
     engine.advance_execution(execution_id)
     status = engine.get_status(execution_id)
@@ -43,7 +43,7 @@ def handle_execute_run(args: Namespace) -> None:
 def _render_dry_run_table(tol_document: dict[str, Any]) -> str:
     config = get_config()
     planned_actions = plan_actions(tol_document)
-    rows = [_to_dry_run_row(action, config.tif) for action in planned_actions]
+    rows = [_to_dry_run_row(action, config.execution.tif) for action in planned_actions]
     return tabulate(
         rows,
         headers=["Action", "Symbol", "Quantity", "TIF", "Would Submit"],

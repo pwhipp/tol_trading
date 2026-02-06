@@ -27,7 +27,7 @@ def handle_generate(args) -> None:
     for warning in response.warnings:
         print(f"WARNING: {warning}", file=sys.stderr)
 
-    document = apply_tol_defaults(response.document, mode=config.mode)
+    document = apply_tol_defaults(response.document, mode=config.broker.mode)
     check_tol_syntax_and_static_semantics(document)
     output = dump_tol(document)
     print(output)

@@ -8,11 +8,11 @@ from tol.config import get_config
 def handle_broker_summary(args) -> None:
     del args
     config = get_config()
-    broker_api = get_broker_api(config.mode)
+    broker_api = get_broker_api(config.broker.mode)
 
     print("TOL Broker Summary")
     print("----------------------------------------")
-    print(f"Trading mode: {config.mode}")
+    print(f"Trading mode: {config.broker.mode}")
     print()
 
     snapshot = broker_api.get_portfolio_snapshot()

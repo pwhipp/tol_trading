@@ -2,49 +2,59 @@ from __future__ import annotations
 
 from functools import lru_cache
 import json
+import os
 from pathlib import Path
 from typing import Any
-import os
 
 import yaml
 
 
-CONFIG_PARAMS: dict[str, dict[str, Any]] = {
-    "api_key": {"default": "", "parser": str},
-    "base_url": {
-        "default": "https://api.openai.com/v1",
-        "parser": str,
-    },
-    "model": {"default": "gpt-4.1", "parser": str},
-    "mode": {"default": "paper", "parser": str},
-    "broker": {"default": "IBKRBrokerAPI", "parser": str},
-    "broker_client_id": {"default": 11, "parser": int},
-    "timeout_seconds": {"default": 30.0, "parser": float},
-    "temperature": {"default": 0.0, "parser": float},
-    "max_tokens": {"default": 50000, "parser": int},
-    "usage_log_path": {"default": "llm_usage.log", "parser": str},
-    "usage_log_level": {"default": "INFO", "parser": str},
-    "api_log_path": {"default": "llm_api.log", "parser": str},
-    "api_log_level": {"default": "INFO", "parser": str},
-    "tif": {"default": "GTC", "parser": str},
-    "default_exchange": {"default": None, "parser": str},
-    "default_currency": {"default": None, "parser": str},
-    "broker_watched_tickers": {"default": [], "parser": list},
-}
+ConfigPath = tuple[str, ...]
 
-DEFAULT_SETTINGS: dict[str, Any] = {
-    key: value["default"] for key, value in CONFIG_PARAMS.items()
+
+CONFIG_SCHEMA: dict[str, Any] = {
+    "execution": {
+        "usage_log_path": {"default": "llm_usage.log", "parser": str},
+        "usage_log_level": {"default": "INFO", "parser": str},
+        "tif": {"default": "GTC", "parser": str},
+        "default_currency": {"default": None, "parser": str},
+        "default_exchange": {"default": None, "parser": str},
+    },
+    "broker": {
+        "api_key": {"default": "", "parser": str},
+        "base_url": {
+            "default": "https://api.openai.com/v1",
+            "parser": str,
+        },
+        "mode": {"default": "paper", "parser": str},
+        "api": {"default": "IBKRBrokerAPI", "parser": str},
+        "client_id": {"default": 11, "parser": int},
+        "timeout_seconds": {"default": 30.0, "parser": float},
+        "watched_tickers": {"default": [], "parser": list},
+    },
+    "llm": {
+        "model": {"default": "gpt-4.1", "parser": str},
+        "temperature": {"default": 0.0, "parser": float},
+        "max_tokens": {"default": 50000, "parser": int},
+        "api_log_path": {"default": "llm_api.log", "parser": str},
+        "api_log_level": {"default": "INFO", "parser": str},
+    },
 }
 
 _OPTIONAL_EMPTY_KEYS = {
-    "usage_log_path",
-    "api_log_path",
-    "default_exchange",
-    "default_currency",
+    ("execution", "usage_log_path"),
+    ("execution", "default_exchange"),
+    ("execution", "default_currency"),
+    ("llm", "api_log_path"),
+}
+
+_PATH_KEYS = {
+    ("execution", "usage_log_path"),
+    ("llm", "api_log_path"),
 }
 
 
-class Config(dict[str, Any]):
+class ConfigSection(dict[str, Any]):
     def __getattr__(self, name: str) -> Any:
         try:
             return self[name]
@@ -54,19 +64,45 @@ class Config(dict[str, Any]):
     def __setattr__(self, name: str, value: Any) -> None:
         if name.startswith("_"):
             super().__setattr__(name, value)
-        else:
-            self[name] = value
+            return
+        self[name] = value
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        super().__setitem__(key, self._coerce_value(value))
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> "ConfigSection":
+        section = cls()
+        for key, value in data.items():
+            section[key] = value
+        return section
+
+    @staticmethod
+    def _coerce_value(value: Any) -> Any:
+        if isinstance(value, ConfigSection):
+            return value
+        if isinstance(value, dict):
+            return ConfigSection.from_mapping(value)
+        return value
+
+
+class Config(dict[str, ConfigSection]):
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Config":
-        payload = {}
-        for key in CONFIG_PARAMS:
-            value = data.get(key, DEFAULT_SETTINGS[key])
-            payload[key] = _normalize_value(key, value)
-        return cls(payload)
+        payload = _normalize_config_shape(CONFIG_SCHEMA, data or {}, ())
+        config = cls()
+        for category, value in payload.items():
+            config[category] = ConfigSection.from_mapping(value)
+        return config
 
     def to_dict(self) -> dict[str, Any]:
-        return {key: _serialize_value(key, self.get(key)) for key in CONFIG_PARAMS}
+        return _serialize_config_shape(CONFIG_SCHEMA, self, ())
 
     def load(self, path: Path | None = None) -> None:
         config_data = _load_config_data(path)
@@ -99,15 +135,18 @@ def get_config() -> Config:
     return config
 
 
-def get_setting(config: Config, key: str) -> Any:
-    _ensure_setting_key(key)
-    return config.get(key)
+def get_setting(config: Config, category: str, key: str | None = None) -> Any:
+    _ensure_category(category)
+    if key is None:
+        return config[category]
+    _ensure_setting_key(category, key)
+    return config[category].get(key)
 
 
-def set_setting(config: Config, key: str, raw_value: str) -> Config:
-    _ensure_setting_key(key)
-    value = _normalize_value(key, raw_value)
-    config[key] = value
+def set_setting(config: Config, category: str, key: str, raw_value: str) -> Config:
+    leaf_schema = _resolve_setting_schema((category, key))
+    value = _normalize_value((category, key), leaf_schema, raw_value)
+    config[category][key] = value
     return config
 
 
@@ -115,36 +154,131 @@ def dump_settings(config: Config, stream) -> None:
     yaml.safe_dump(config.to_dict(), stream, sort_keys=False)
 
 
-def _ensure_setting_key(key: str) -> None:
-    if key not in CONFIG_PARAMS:
-        raise KeyError(f"Unknown setting: {key}")
+def dump_category(config: Config, category: str, stream) -> None:
+    _ensure_category(category)
+    yaml.safe_dump(
+        _serialize_config_shape(CONFIG_SCHEMA[category], config[category], (category,)),
+        stream,
+        sort_keys=False,
+    )
 
 
-def _normalize_value(key: str, value: Any) -> Any:
-    if key in _OPTIONAL_EMPTY_KEYS and (value is None or value == ""):
+def _ensure_category(category: str) -> None:
+    if category not in CONFIG_SCHEMA:
+        raise KeyError(f"Unknown config category: {category}")
+
+
+def _ensure_setting_key(category: str, key: str) -> None:
+    _resolve_setting_schema((category, key))
+
+
+def _resolve_setting_schema(path: ConfigPath) -> dict[str, Any]:
+    schema_node: Any = CONFIG_SCHEMA
+    for key in path:
+        if not isinstance(schema_node, dict) or key not in schema_node:
+            raise KeyError(f"Unknown setting: {'.'.join(path)}")
+        schema_node = schema_node[key]
+
+    if not _is_leaf_setting(schema_node):
+        if len(path) == 1:
+            raise KeyError(f"Unknown config category: {path[0]}")
+        raise KeyError(f"Unknown setting: {'.'.join(path)}")
+    return schema_node
+
+
+def _is_leaf_setting(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and "default" in value
+        and "parser" in value
+        and len(value) == 2
+    )
+
+
+def _normalize_config_shape(
+    schema_node: dict[str, Any],
+    data_node: Any,
+    path: ConfigPath,
+) -> dict[str, Any]:
+    incoming = data_node if isinstance(data_node, dict) else {}
+    output: dict[str, Any] = {}
+
+    for key, next_schema in schema_node.items():
+        next_path = (*path, key)
+        raw_value = incoming.get(key)
+        if _is_leaf_setting(next_schema):
+            normalized = _normalize_value(
+                next_path,
+                next_schema,
+                next_schema["default"] if key not in incoming else raw_value,
+            )
+            output[key] = normalized
+            continue
+
+        output[key] = _normalize_config_shape(next_schema, raw_value, next_path)
+
+    return output
+
+
+def _serialize_config_shape(
+    schema_node: dict[str, Any],
+    data_node: Any,
+    path: ConfigPath,
+) -> dict[str, Any]:
+    source = data_node if isinstance(data_node, dict) else {}
+    output: dict[str, Any] = {}
+
+    for key, next_schema in schema_node.items():
+        next_path = (*path, key)
+        value = source.get(key)
+        if _is_leaf_setting(next_schema):
+            output[key] = _serialize_value(next_path, value)
+            continue
+
+        output[key] = _serialize_config_shape(next_schema, value, next_path)
+
+    return output
+
+
+def _normalize_value(
+    path: ConfigPath,
+    leaf_schema: dict[str, Any],
+    value: Any,
+) -> Any:
+    if path in _OPTIONAL_EMPTY_KEYS and (value is None or value == ""):
         return None
-    if key == "mode":
+
+    if path == ("broker", "mode"):
         normalized = str(value).strip().lower()
         if normalized not in {"paper", "live"}:
             raise ValueError("mode must be 'paper' or 'live'")
         return normalized
-    if key == "broker":
+
+    if path == ("broker", "api"):
         normalized = str(value).strip()
         if normalized not in {"IBKRBrokerAPI", "FakeBrokerAPI"}:
-            raise ValueError("broker must be 'IBKRBrokerAPI' or 'FakeBrokerAPI'")
+            raise ValueError("api must be 'IBKRBrokerAPI' or 'FakeBrokerAPI'")
         return normalized
-    if key == "tif":
+
+    if path == ("execution", "tif"):
         normalized = str(value).strip().upper()
         if not normalized:
             raise ValueError("tif must be a non-empty string")
         return normalized
-    if key in {"default_exchange", "default_currency"}:
+
+    if path in {
+        ("execution", "default_exchange"),
+        ("execution", "default_currency"),
+    }:
         return _normalize_optional_code(value)
-    if key == "broker_watched_tickers":
+
+    if path == ("broker", "watched_tickers"):
         return _normalize_tickers(value)
-    if key in {"usage_log_path", "api_log_path"}:
+
+    if path in _PATH_KEYS:
         return Path(value) if value else None
-    parser = CONFIG_PARAMS[key]["parser"]
+
+    parser = leaf_schema["parser"]
     return parser(value)
 
 
@@ -155,8 +289,6 @@ def _normalize_optional_code(value: Any) -> str | None:
     return text or None
 
 
-
-
 def _normalize_tickers(value: Any) -> list[str]:
     if value is None:
         return []
@@ -165,7 +297,7 @@ def _normalize_tickers(value: Any) -> list[str]:
     elif isinstance(value, list):
         candidates = value
     else:
-        raise ValueError("broker_watched_tickers must be a list of strings")
+        raise ValueError("watched_tickers must be a list of strings")
 
     normalized: list[str] = []
     for ticker in candidates:
@@ -174,8 +306,9 @@ def _normalize_tickers(value: Any) -> list[str]:
             normalized.append(cleaned)
     return normalized
 
-def _serialize_value(key: str, value: Any) -> Any:
-    if key in {"usage_log_path", "api_log_path"} and value is not None:
+
+def _serialize_value(path: ConfigPath, value: Any) -> Any:
+    if path in _PATH_KEYS and value is not None:
         return str(value)
     return value
 
@@ -185,7 +318,7 @@ def _load_config_data(path: Path | None) -> dict[str, Any]:
     if config_path.exists():
         data = _read_json(config_path)
         return data if isinstance(data, dict) else {}
-    config = Config.from_dict(DEFAULT_SETTINGS)
+    config = Config.from_dict({})
     config.save(config_path)
     return config.to_dict()
 

@@ -41,24 +41,24 @@ class ChatGptClient:
         self._settings = settings
         self._usage_logger, self._usage_log_warning = _build_file_logger(
             "tol.llm.usage",
-            self._settings.usage_log_path,
-            self._settings.usage_log_level,
+            self._settings.execution.usage_log_path,
+            self._settings.execution.usage_log_level,
         )
         self._api_logger, self._api_log_warning = _build_file_logger(
             "tol.llm.api",
-            self._settings.api_log_path,
-            self._settings.api_log_level,
+            self._settings.llm.api_log_path,
+            self._settings.llm.api_log_level,
         )
         import openai as openai_module
 
         self._openai = openai_module
-        if not self._settings.api_key:
+        if not self._settings.broker.api_key:
             raise RuntimeError(
                 "Missing API key. Set api_key in the TOL config file."
             )
         self._client = self._openai.OpenAI(
-            api_key=self._settings.api_key,
-            base_url=_normalize_base_url(self._settings.base_url),
+            api_key=self._settings.broker.api_key,
+            base_url=_normalize_base_url(self._settings.broker.base_url),
         )
 
     @classmethod
@@ -68,7 +68,7 @@ class ChatGptClient:
             settings = Config.from_dict(
                 {
                     **settings.to_dict(),
-                    "model": model_override,
+                    "llm": {**settings.to_dict()["llm"], "model": model_override},
                 }
             )
         return cls(settings)
@@ -88,11 +88,11 @@ class ChatGptClient:
         prompt_text: str,
         mode_override: str | None = None,
     ) -> LlmDocumentResponse:
-        mode = mode_override or self._settings.mode
+        mode = mode_override or self._settings.broker.mode
         context_prompt = _generate_context_prompt(
             mode,
-            self._settings.default_exchange,
-            self._settings.default_currency,
+            self._settings.execution.default_exchange,
+            self._settings.execution.default_currency,
         )
         user_prompt = _generate_user_prompt(prompt_text)
         message = self._chat(
@@ -116,8 +116,8 @@ class ChatGptClient:
 
         document = _apply_llm_using_defaults(
             document,
-            default_exchange=self._settings.default_exchange,
-            default_currency=self._settings.default_currency,
+            default_exchange=self._settings.execution.default_exchange,
+            default_currency=self._settings.execution.default_currency,
         )
         document = _rewrite_implicit_fx_actions(document, prompt_text)
         normalized = normalize_tol_document(document)
@@ -132,11 +132,11 @@ class ChatGptClient:
         start_time = time.monotonic()
         try:
             response = self._client.responses.create(
-                model=self._settings.model,
+                model=self._settings.llm.model,
                 input=messages,
-                temperature=self._settings.temperature,
-                max_output_tokens=self._settings.max_tokens,
-                timeout=self._settings.timeout_seconds,
+                temperature=self._settings.llm.temperature,
+                max_output_tokens=self._settings.llm.max_tokens,
+                timeout=self._settings.broker.timeout_seconds,
             )
         except self._openai.APIStatusError as exc:
             self._log_api_error(
@@ -187,7 +187,7 @@ class ChatGptClient:
     def _record_usage(self, usage: LlmUsage) -> str | None:
         payload = {
             "timestamp": time.time(),
-            "model": self._settings.model,
+            "model": self._settings.llm.model,
             "prompt_tokens": usage.prompt_tokens,
             "completion_tokens": usage.completion_tokens,
             "total_tokens": usage.total_tokens,

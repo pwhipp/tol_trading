@@ -23,14 +23,14 @@ class BrokerPriceHandler:
         raw_tickers = BrokerPriceHandler._resolve_raw_tickers(args, config)
         tickers = BrokerPriceHandler._normalize_tickers(
             raw_tickers,
-            config.default_exchange,
+            config.execution.default_exchange,
         )
         BrokerPriceHandler._persist_watched_tickers(config, tickers, args.watch)
 
-        if config.broker != "IBKRBrokerAPI":
+        if config.broker.api != "IBKRBrokerAPI":
             raise ValueError("tol broker price is only supported with IBKRBrokerAPI")
 
-        gateway = IBKRGateway(config.mode, config.broker_client_id)
+        gateway = IBKRGateway(config.broker.mode, config.broker.client_id)
         rows: list[list[str]] = []
 
         gateway.connect()
@@ -81,12 +81,12 @@ class BrokerPriceHandler:
         if cli_tickers:
             return cli_tickers
 
-        watched_tickers = config.get("broker_watched_tickers") or []
+        watched_tickers = config.broker.get("watched_tickers") or []
         if watched_tickers:
             return watched_tickers
 
         raise ValueError(
-            "No tickers supplied. Provide tickers or set broker_watched_tickers in config."
+            "No tickers supplied. Provide tickers or set broker.watched_tickers in config."
         )
 
     @staticmethod
@@ -124,13 +124,13 @@ class BrokerPriceHandler:
     ) -> None:
         watched = [f"{ticker.symbol}.{ticker.exchange}" for ticker in tickers]
         if watch_mode == "add":
-            existing = config.get("broker_watched_tickers") or []
+            existing = config.broker.get("watched_tickers") or []
             merged = list(dict.fromkeys([*existing, *watched]))
-            config["broker_watched_tickers"] = merged
+            config.broker["watched_tickers"] = merged
             config.save()
             return
 
-        config["broker_watched_tickers"] = watched
+        config.broker["watched_tickers"] = watched
         config.save()
 
     @staticmethod

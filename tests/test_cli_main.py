@@ -94,10 +94,11 @@ class TestCliMain(unittest.TestCase):
 
     def test_config_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["config", "get", "model"])
+        args = parser.parse_args(["config", "get", "llm", "model"])
 
         self.assertEqual(args.command, "config")
         self.assertEqual(args.config_command, "get")
+        self.assertEqual(args.category, "llm")
         self.assertEqual(args.key, "model")
 
     def test_execute_resume_command_parsing(self) -> None:
@@ -155,7 +156,7 @@ class TestCliMain(unittest.TestCase):
             os.environ["XDG_CONFIG_HOME"] = temp_dir
             app_config.get_config.cache_clear()
             settings = app_config.get_config()
-            updated = app_config.set_setting(settings, "broker", "FakeBrokerAPI")
+            updated = app_config.set_setting(settings, "broker", "api", "FakeBrokerAPI")
             updated.save()
             try:
                 args = build_parser().parse_args(["execute", "status"])

@@ -6,6 +6,11 @@ from tol.cli.handlers.broker import price as broker_price
 from tol.cli.handlers.broker.price import BrokerPriceHandler
 
 
+class _Section(dict):
+    def __getattr__(self, item: str):
+        return self[item]
+
+
 class _StubConfig(dict):
     def __getattr__(self, item: str):
         return self[item]
@@ -31,31 +36,28 @@ def test_normalize_tickers_falls_back_to_nsye_default() -> None:
 
 
 def test_persist_watched_tickers_reset_and_add_modes() -> None:
-    config = _StubConfig(broker_watched_tickers=["AAPL.NASDAQ"])
+    config = _StubConfig(broker=_Section(watched_tickers=["AAPL.NASDAQ"]))
 
     BrokerPriceHandler._persist_watched_tickers(
         config,
         BrokerPriceHandler._normalize_tickers(["msft"], "nyse"),
         "reset",
     )
-    assert config["broker_watched_tickers"] == ["MSFT.NYSE"]
+    assert config["broker"]["watched_tickers"] == ["MSFT.NYSE"]
 
     BrokerPriceHandler._persist_watched_tickers(
         config,
         BrokerPriceHandler._normalize_tickers(["aapl.nasdaq", "msft.nyse"], "nyse"),
         "add",
     )
-    assert config["broker_watched_tickers"] == ["MSFT.NYSE", "AAPL.NASDAQ"]
+    assert config["broker"]["watched_tickers"] == ["MSFT.NYSE", "AAPL.NASDAQ"]
 
 
 def test_handle_rejects_non_ibkr_broker(monkeypatch) -> None:
     args = Namespace(tickers=["MSFT"], watch="reset")
     config = _StubConfig(
-        broker="FakeBrokerAPI",
-        default_exchange="NYSE",
-        mode="paper",
-        broker_client_id=1,
-        broker_watched_tickers=[],
+        broker=_Section(api="FakeBrokerAPI", mode="paper", client_id=1, watched_tickers=[]),
+        execution=_Section(default_exchange="NYSE"),
     )
 
     monkeypatch.setattr(broker_price, "get_config", lambda: config)
@@ -70,7 +72,7 @@ def test_handle_rejects_non_ibkr_broker(monkeypatch) -> None:
 
 def test_resolve_raw_tickers_prefers_cli_values() -> None:
     args = Namespace(tickers=["MSFT"], watch="reset")
-    config = _StubConfig(broker_watched_tickers=["AAPL.NASDAQ"])
+    config = _StubConfig(broker=_Section(watched_tickers=["AAPL.NASDAQ"]))
 
     resolved = BrokerPriceHandler._resolve_raw_tickers(args, config)
 
@@ -79,7 +81,7 @@ def test_resolve_raw_tickers_prefers_cli_values() -> None:
 
 def test_resolve_raw_tickers_falls_back_to_watched_tickers() -> None:
     args = Namespace(tickers=[], watch="reset")
-    config = _StubConfig(broker_watched_tickers=["AAPL.NASDAQ", "MSFT.NYSE"])
+    config = _StubConfig(broker=_Section(watched_tickers=["AAPL.NASDAQ", "MSFT.NYSE"]))
 
     resolved = BrokerPriceHandler._resolve_raw_tickers(args, config)
 
@@ -88,14 +90,14 @@ def test_resolve_raw_tickers_falls_back_to_watched_tickers() -> None:
 
 def test_resolve_raw_tickers_raises_when_no_sources() -> None:
     args = Namespace(tickers=[], watch="reset")
-    config = _StubConfig(broker_watched_tickers=[])
+    config = _StubConfig(broker=_Section(watched_tickers=[]))
 
     try:
         BrokerPriceHandler._resolve_raw_tickers(args, config)
     except ValueError as exc:
         assert (
             str(exc)
-            == "No tickers supplied. Provide tickers or set broker_watched_tickers in config."
+            == "No tickers supplied. Provide tickers or set broker.watched_tickers in config."
         )
     else:
         raise AssertionError("Expected ValueError")
