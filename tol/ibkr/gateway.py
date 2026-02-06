@@ -164,13 +164,22 @@ class IBKRGateway:
                 break
 
         price, is_open = self._extract_snapshot(ticker)
-        self.ib.cancelMktData(contract)
+        self._cancel_market_data(contract)
 
         return {
             "price": price,
             "currency": getattr(contract, "currency", "USD"),
             "is_open": is_open,
         }
+
+
+    def _cancel_market_data(self, contract) -> None:
+        try:
+            self.ib.cancelMktData(contract)
+        except RequestError as exc:
+            if exc.code == 300:
+                return
+            raise
 
     @staticmethod
     def _extract_snapshot(ticker) -> tuple[Decimal | None, bool | None]:

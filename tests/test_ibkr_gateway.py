@@ -105,3 +105,35 @@ class TestIBKRGatewaySnapshotParsing(unittest.TestCase):
 
         self.assertEqual(str(price), "49.02")
         self.assertFalse(is_open)
+
+
+class _FakeIBCancel:
+    def __init__(self, error: Exception | None = None) -> None:
+        self._error = error
+        self.cancel_calls = 0
+
+    def cancelMktData(self, _contract) -> None:
+        self.cancel_calls += 1
+        if self._error is not None:
+            raise self._error
+
+
+class TestIBKRGatewayCancelMarketData(unittest.TestCase):
+    def test_cancel_market_data_ignores_error_300(self) -> None:
+        gateway = IBKRGateway("paper", client_id=7)
+        gateway.ib = _FakeIBCancel(
+            RequestError(reqId=32, code=300, message="Can't find EId with tickerId:32")
+        )
+
+        gateway._cancel_market_data(contract=object())
+
+        self.assertEqual(gateway.ib.cancel_calls, 1)
+
+    def test_cancel_market_data_raises_other_request_errors(self) -> None:
+        gateway = IBKRGateway("paper", client_id=7)
+        gateway.ib = _FakeIBCancel(
+            RequestError(reqId=32, code=321, message="Some other IBKR error")
+        )
+
+        with self.assertRaises(RequestError):
+            gateway._cancel_market_data(contract=object())
