@@ -78,3 +78,22 @@ def test_resume_outputs_status_yaml(tmp_path: Path, capsys, monkeypatch) -> None
 
     assert payload["execution"]["id"] == execution_id
     assert payload["execution"]["status"] in {"RUNNING", "SUSPENDED", "COMPLETED"}
+
+
+def test_execute_dry_run_prints_orders_without_state_change(
+    tmp_path: Path,
+    capsys,
+    monkeypatch,
+) -> None:
+    _configure_fake_broker(monkeypatch, tmp_path)
+    monkeypatch.setattr("sys.stdin", io.StringIO(_tol_doc_text()))
+    db_path = resolve_db_path()
+
+    args = build_parser().parse_args(["execute", "run", "--dry-run"])
+    handle_execute_run(args)
+
+    output = capsys.readouterr().out
+    assert "| Action" in output
+    assert "| buyVOO" in output
+    assert "| yes" in output
+    assert not db_path.exists()
