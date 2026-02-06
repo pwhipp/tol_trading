@@ -82,6 +82,27 @@ class _SnapshotTicker:
         return self._market_price
 
 
+class _FakeIBSnapshot:
+    def __init__(self, ticker: _SnapshotTicker) -> None:
+        self._ticker = ticker
+        self.market_data_requests: list[tuple[bool, bool]] = []
+        self.sleeps: list[float] = []
+        self.cancel_calls = 0
+
+    def reqMarketDataType(self, _market_data_type: int) -> None:
+        return None
+
+    def reqMktData(self, _contract, _generic, snapshot: bool, regulatory: bool):
+        self.market_data_requests.append((snapshot, regulatory))
+        return self._ticker
+
+    def sleep(self, value: float) -> None:
+        self.sleeps.append(value)
+
+    def cancelMktData(self, _contract) -> None:
+        self.cancel_calls += 1
+
+
 class TestIBKRGatewaySnapshotParsing(unittest.TestCase):
     def test_extract_snapshot_price_uses_market_price_fallback(self) -> None:
         ticker = _SnapshotTicker(last=float("nan"), close=None, market_price=49.02)
@@ -90,50 +111,26 @@ class TestIBKRGatewaySnapshotParsing(unittest.TestCase):
 
         self.assertEqual(str(price), "49.02")
 
-    def test_extract_snapshot_marks_open_when_bid_ask_present(self) -> None:
-        ticker = _SnapshotTicker(last=None, close=None, bid=48.9, ask=49.1)
-
-        price, is_open = IBKRGateway._extract_snapshot(ticker)
-
-        self.assertIsNone(price)
-        self.assertTrue(is_open)
-
-    def test_extract_snapshot_marks_closed_when_price_without_bid_ask(self) -> None:
-        ticker = _SnapshotTicker(last=49.02, close=None, bid=None, ask=None)
-
-        price, is_open = IBKRGateway._extract_snapshot(ticker)
-
-        self.assertEqual(str(price), "49.02")
-        self.assertFalse(is_open)
-
-
-class _FakeIBCancel:
-    def __init__(self, error: Exception | None = None) -> None:
-        self._error = error
-        self.cancel_calls = 0
-
-    def cancelMktData(self, _contract) -> None:
-        self.cancel_calls += 1
-        if self._error is not None:
-            raise self._error
-
-
-class TestIBKRGatewayCancelMarketData(unittest.TestCase):
-    def test_cancel_market_data_ignores_error_300(self) -> None:
+    def test_get_market_snapshot_returns_bid_and_ask(self) -> None:
         gateway = IBKRGateway("paper", client_id=7)
-        gateway.ib = _FakeIBCancel(
-            RequestError(reqId=32, code=300, message="Can't find EId with tickerId:32")
+        fake_ib = _FakeIBSnapshot(
+            _SnapshotTicker(last=None, close=49.02, bid=48.9, ask=49.1)
         )
+        gateway.ib = fake_ib
 
-        gateway._cancel_market_data(contract=object())
+        snapshot = gateway.get_market_snapshot(contract=object())
 
-        self.assertEqual(gateway.ib.cancel_calls, 1)
+        self.assertEqual(str(snapshot["price"]), "49.02")
+        self.assertEqual(str(snapshot["bid"]), "48.9")
+        self.assertEqual(str(snapshot["ask"]), "49.1")
+        self.assertTrue(snapshot["is_open"])
+        self.assertEqual(fake_ib.market_data_requests, [(True, False)])
 
-    def test_cancel_market_data_raises_other_request_errors(self) -> None:
+    def test_get_market_snapshot_does_not_cancel_snapshot_request(self) -> None:
         gateway = IBKRGateway("paper", client_id=7)
-        gateway.ib = _FakeIBCancel(
-            RequestError(reqId=32, code=321, message="Some other IBKR error")
-        )
+        fake_ib = _FakeIBSnapshot(_SnapshotTicker(last=49.02))
+        gateway.ib = fake_ib
 
-        with self.assertRaises(RequestError):
-            gateway._cancel_market_data(contract=object())
+        gateway.get_market_snapshot(contract=object())
+
+        self.assertEqual(fake_ib.cancel_calls, 0)

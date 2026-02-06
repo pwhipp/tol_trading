@@ -163,29 +163,9 @@ class IBKRGateway:
             if self._extract_snapshot_price(ticker) is not None:
                 break
 
-        price, is_open = self._extract_snapshot(ticker)
-        self._cancel_market_data(contract)
-
-        return {
-            "price": price,
-            "currency": getattr(contract, "currency", "USD"),
-            "is_open": is_open,
-        }
-
-
-    def _cancel_market_data(self, contract) -> None:
-        try:
-            self.ib.cancelMktData(contract)
-        except RequestError as exc:
-            if exc.code == 300:
-                return
-            raise
-
-    @staticmethod
-    def _extract_snapshot(ticker) -> tuple[Decimal | None, bool | None]:
-        price = IBKRGateway._extract_snapshot_price(ticker)
-        bid = IBKRGateway._safe_decimal(getattr(ticker, "bid", None))
-        ask = IBKRGateway._safe_decimal(getattr(ticker, "ask", None))
+        price = self._extract_snapshot_price(ticker)
+        bid = self._safe_decimal(getattr(ticker, "bid", None))
+        ask = self._safe_decimal(getattr(ticker, "ask", None))
 
         is_open = None
         if bid is not None and ask is not None:
@@ -193,7 +173,13 @@ class IBKRGateway:
         elif price is not None:
             is_open = False
 
-        return price, is_open
+        return {
+            "price": price,
+            "bid": bid,
+            "ask": ask,
+            "currency": getattr(contract, "currency", "USD"),
+            "is_open": is_open,
+        }
 
     @staticmethod
     def _extract_snapshot_price(ticker) -> Decimal | None:

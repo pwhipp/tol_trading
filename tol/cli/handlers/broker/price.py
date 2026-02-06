@@ -39,14 +39,16 @@ class BrokerPriceHandler:
                 formatted_ticker = f"{ticker.symbol}.{ticker.exchange}"
                 contract = gateway.qualify_stock_contract(formatted_ticker)
                 if contract is None:
-                    rows.append([formatted_ticker, "-", "-", "-", "FAILED"])
+                    rows.append([formatted_ticker, "-", "-", "-", "-", "-", "FAILED"])
                     continue
 
                 snapshot = gateway.get_market_snapshot(contract)
                 rows.append(
                     [
                         formatted_ticker,
-                        BrokerPriceHandler._sanitize_price(snapshot.get("price")),
+                        BrokerPriceHandler._sanitize_decimal(snapshot.get("price")),
+                        BrokerPriceHandler._sanitize_decimal(snapshot.get("bid")),
+                        BrokerPriceHandler._sanitize_decimal(snapshot.get("ask")),
                         str(snapshot.get("currency") or "-"),
                         BrokerPriceHandler._format_market_open(
                             snapshot.get("is_open")
@@ -63,6 +65,8 @@ class BrokerPriceHandler:
                 headers=[
                     "Ticker",
                     "Price",
+                    "Bid",
+                    "Ask",
                     "Currency",
                     "Market Open",
                     "Status",
@@ -70,7 +74,6 @@ class BrokerPriceHandler:
                 tablefmt="github",
             )
         )
-
 
     @staticmethod
     def _resolve_raw_tickers(args: Namespace, config) -> list[str]:
@@ -139,7 +142,7 @@ class BrokerPriceHandler:
         return "unknown"
 
     @staticmethod
-    def _sanitize_price(value: Decimal | None) -> str:
+    def _sanitize_decimal(value: Decimal | None) -> str:
         if value is None:
             return "-"
         return f"{value}"
