@@ -30,6 +30,7 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "api": {"default": "IBKRBrokerAPI", "parser": str},
         "client_id": {"default": 11, "parser": int},
         "timeout_seconds": {"default": 30.0, "parser": float},
+        "settle_window": {"default": 0.3, "parser": float},
         "watched_tickers": {"default": [], "parser": list},
     },
     "llm": {
@@ -274,6 +275,12 @@ def _normalize_value(
 
     if path == ("broker", "watched_tickers"):
         return _normalize_tickers(value)
+
+    if path == ("broker", "settle_window"):
+        settle_window = float(value)
+        if settle_window < 0:
+            raise ValueError("settle_window must be >= 0")
+        return settle_window
 
     if path in _PATH_KEYS:
         return Path(value) if value else None

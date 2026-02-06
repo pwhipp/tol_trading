@@ -155,17 +155,20 @@ class IBKRGateway:
         status = getattr(order_state, "status", None)
         return {"status": status}
 
-    def get_market_snapshot(self, contract) -> dict:
+    def get_market_snapshot(self, contract, settle_window: float = 0.0) -> dict:
         self.ib.reqMarketDataType(3)
+        settle_delay = max(0.0, float(settle_window))
         ticker = self.ib.reqMktData(contract, "", True, False)
+        if settle_delay > 0:
+            self.ib.sleep(settle_delay)
         for _ in range(25):
             self.ib.sleep(0.2)
             if self._extract_snapshot_price(ticker) is not None:
                 break
 
         price = self._extract_snapshot_price(ticker)
-        bid = self._safe_decimal(getattr(ticker, "bid", None))
-        ask = self._safe_decimal(getattr(ticker, "ask", None))
+        bid = self._sanitize_quote_value(getattr(ticker, "bid", None))
+        ask = self._sanitize_quote_value(getattr(ticker, "ask", None))
 
         is_open = None
         if bid is not None and ask is not None:
@@ -182,15 +185,23 @@ class IBKRGateway:
         }
 
     @staticmethod
+    def _sanitize_quote_value(value) -> Decimal | None:
+        quote = IBKRGateway._safe_decimal(value)
+        if quote is None or quote < 0:
+            return None
+        return quote
+
+    @staticmethod
     def _extract_snapshot_price(ticker) -> Decimal | None:
         candidates = [
-            IBKRGateway._safe_decimal(getattr(ticker, "last", None)),
-            IBKRGateway._safe_decimal(getattr(ticker, "close", None)),
-            IBKRGateway._safe_decimal(getattr(ticker, "marketPrice", lambda: None)()),
+            getattr(ticker, "last", None),
+            getattr(ticker, "close", None),
+            getattr(ticker, "marketPrice", lambda: None)(),
         ]
         for candidate in candidates:
-            if candidate is not None:
-                return candidate
+            sanitized = IBKRGateway._sanitize_quote_value(candidate)
+            if sanitized is not None:
+                return sanitized
         return None
 
     @staticmethod

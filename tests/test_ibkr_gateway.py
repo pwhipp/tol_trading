@@ -134,3 +134,27 @@ class TestIBKRGatewaySnapshotParsing(unittest.TestCase):
         gateway.get_market_snapshot(contract=object())
 
         self.assertEqual(fake_ib.cancel_calls, 0)
+
+
+    def test_get_market_snapshot_sleeps_for_settle_window_before_polling(self) -> None:
+        gateway = IBKRGateway("paper", client_id=7)
+        fake_ib = _FakeIBSnapshot(_SnapshotTicker(last=49.02))
+        gateway.ib = fake_ib
+
+        gateway.get_market_snapshot(contract=object(), settle_window=0.3)
+
+        self.assertGreaterEqual(len(fake_ib.sleeps), 1)
+        self.assertEqual(fake_ib.sleeps[0], 0.3)
+
+    def test_get_market_snapshot_sanitizes_negative_ask_value(self) -> None:
+        gateway = IBKRGateway("paper", client_id=7)
+        fake_ib = _FakeIBSnapshot(
+            _SnapshotTicker(last=-1, bid=-1, ask=-1)
+        )
+        gateway.ib = fake_ib
+
+        snapshot = gateway.get_market_snapshot(contract=object())
+
+        self.assertIsNone(snapshot["price"])
+        self.assertIsNone(snapshot["bid"])
+        self.assertIsNone(snapshot["ask"])

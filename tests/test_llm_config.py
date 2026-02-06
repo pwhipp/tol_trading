@@ -28,6 +28,7 @@ def test_load_settings_creates_default_file(
     assert settings.broker.api == "IBKRBrokerAPI"
     assert settings.llm.temperature == 0.0
     assert settings.broker.client_id == 11
+    assert settings.broker.settle_window == 0.3
     assert settings.execution.usage_log_path == Path("llm_usage.log")
     assert settings.execution.usage_log_level == "INFO"
     assert settings.llm.api_log_path == Path("llm_api.log")
@@ -104,3 +105,15 @@ def test_flat_config_shape_is_not_migrated(
 
     assert settings.llm.model == "gpt-4.1"
     assert settings.broker.client_id == 11
+    assert settings.broker.settle_window == 0.3
+
+
+def test_settle_window_must_be_non_negative(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    get_config.cache_clear()
+    settings = get_config()
+
+    with pytest.raises(ValueError, match="settle_window must be >= 0"):
+        set_setting(settings, "broker", "settle_window", "-0.1")

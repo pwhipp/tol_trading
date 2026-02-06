@@ -20,7 +20,7 @@ class BrokerPriceHandler:
     @staticmethod
     def handle(args: Namespace) -> None:
         config = get_config()
-        raw_tickers = BrokerPriceHandler._resolve_raw_tickers(args, config)
+        raw_tickers = BrokerPriceHandler._resolve_raw_tickers(args, config, args.watch)
         tickers = BrokerPriceHandler._normalize_tickers(
             raw_tickers,
             config.execution.default_exchange,
@@ -31,6 +31,7 @@ class BrokerPriceHandler:
             raise ValueError("tol broker price is only supported with IBKRBrokerAPI")
 
         gateway = IBKRGateway(config.broker.mode, config.broker.client_id)
+        settle_window = max(0.0, float(config.broker.settle_window))
         rows: list[list[str]] = []
 
         gateway.connect()
@@ -39,10 +40,13 @@ class BrokerPriceHandler:
                 formatted_ticker = f"{ticker.symbol}.{ticker.exchange}"
                 contract = gateway.qualify_stock_contract(formatted_ticker)
                 if contract is None:
-                    rows.append([formatted_ticker, "-", "-", "-", "-", "-", "FAILED"])
+                    rows.append([formatted_ticker, "-1", "-1", "-1", "-", "-", "FAILED"])
                     continue
 
-                snapshot = gateway.get_market_snapshot(contract)
+                snapshot = gateway.get_market_snapshot(
+                    contract,
+                    settle_window=settle_window,
+                )
                 rows.append(
                     [
                         formatted_ticker,
@@ -50,9 +54,7 @@ class BrokerPriceHandler:
                         BrokerPriceHandler._sanitize_decimal(snapshot.get("bid")),
                         BrokerPriceHandler._sanitize_decimal(snapshot.get("ask")),
                         str(snapshot.get("currency") or "-"),
-                        BrokerPriceHandler._format_market_open(
-                            snapshot.get("is_open")
-                        ),
+                        BrokerPriceHandler._format_market_open(snapshot.get("is_open")),
                         "OK",
                     ]
                 )
@@ -76,12 +78,16 @@ class BrokerPriceHandler:
         )
 
     @staticmethod
-    def _resolve_raw_tickers(args: Namespace, config) -> list[str]:
+    def _resolve_raw_tickers(args: Namespace, config, watch_mode: str) -> list[str]:
         cli_tickers = args.tickers or []
+        watched_tickers = config.broker.get("watched_tickers") or []
+
+        if cli_tickers and watch_mode == "add":
+            return list(dict.fromkeys([*watched_tickers, *cli_tickers]))
+
         if cli_tickers:
             return cli_tickers
 
-        watched_tickers = config.broker.get("watched_tickers") or []
         if watched_tickers:
             return watched_tickers
 
@@ -144,7 +150,7 @@ class BrokerPriceHandler:
     @staticmethod
     def _sanitize_decimal(value: Decimal | None) -> str:
         if value is None:
-            return "-"
+            return "-1"
         return f"{value}"
 
 
