@@ -74,7 +74,7 @@ def test_resolve_raw_tickers_prefers_cli_values() -> None:
     args = Namespace(tickers=["MSFT"], watch="reset")
     config = _StubConfig(broker=_Section(watched_tickers=["AAPL.NASDAQ"]))
 
-    resolved = BrokerPriceHandler._resolve_raw_tickers(args, config)
+    resolved = BrokerPriceHandler._resolve_raw_tickers(args, config, "reset")
 
     assert resolved == ["MSFT"]
 
@@ -83,7 +83,7 @@ def test_resolve_raw_tickers_falls_back_to_watched_tickers() -> None:
     args = Namespace(tickers=[], watch="reset")
     config = _StubConfig(broker=_Section(watched_tickers=["AAPL.NASDAQ", "MSFT.NYSE"]))
 
-    resolved = BrokerPriceHandler._resolve_raw_tickers(args, config)
+    resolved = BrokerPriceHandler._resolve_raw_tickers(args, config, "reset")
 
     assert resolved == ["AAPL.NASDAQ", "MSFT.NYSE"]
 
@@ -93,7 +93,7 @@ def test_resolve_raw_tickers_raises_when_no_sources() -> None:
     config = _StubConfig(broker=_Section(watched_tickers=[]))
 
     try:
-        BrokerPriceHandler._resolve_raw_tickers(args, config)
+        BrokerPriceHandler._resolve_raw_tickers(args, config, "reset")
     except ValueError as exc:
         assert (
             str(exc)
@@ -101,6 +101,15 @@ def test_resolve_raw_tickers_raises_when_no_sources() -> None:
         )
     else:
         raise AssertionError("Expected ValueError")
+
+
+def test_resolve_raw_tickers_add_mode_includes_existing_and_cli() -> None:
+    args = Namespace(tickers=["NVDA", "MSFT"], watch="add")
+    config = _StubConfig(broker=_Section(watched_tickers=["AAPL.NASDAQ", "NVDA"]))
+
+    resolved = BrokerPriceHandler._resolve_raw_tickers(args, config, "add")
+
+    assert resolved == ["AAPL.NASDAQ", "NVDA", "MSFT"]
 
 
 class _GatewayStub:
@@ -152,3 +161,7 @@ def test_handle_passes_configured_settle_window(monkeypatch) -> None:
 
     assert _GatewayStub.last_instance is not None
     assert _GatewayStub.last_instance.calls == [0.3]
+
+
+def test_sanitize_decimal_uses_negative_one_for_unknown() -> None:
+    assert BrokerPriceHandler._sanitize_decimal(None) == "-1"

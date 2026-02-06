@@ -167,7 +167,7 @@ class IBKRGateway:
                 break
 
         price = self._extract_snapshot_price(ticker)
-        bid = self._safe_decimal(getattr(ticker, "bid", None))
+        bid = self._sanitize_quote_value(getattr(ticker, "bid", None))
         ask = self._sanitize_quote_value(getattr(ticker, "ask", None))
 
         is_open = None
@@ -184,7 +184,6 @@ class IBKRGateway:
             "is_open": is_open,
         }
 
-
     @staticmethod
     def _sanitize_quote_value(value) -> Decimal | None:
         quote = IBKRGateway._safe_decimal(value)
@@ -195,13 +194,14 @@ class IBKRGateway:
     @staticmethod
     def _extract_snapshot_price(ticker) -> Decimal | None:
         candidates = [
-            IBKRGateway._safe_decimal(getattr(ticker, "last", None)),
-            IBKRGateway._safe_decimal(getattr(ticker, "close", None)),
-            IBKRGateway._safe_decimal(getattr(ticker, "marketPrice", lambda: None)()),
+            getattr(ticker, "last", None),
+            getattr(ticker, "close", None),
+            getattr(ticker, "marketPrice", lambda: None)(),
         ]
         for candidate in candidates:
-            if candidate is not None:
-                return candidate
+            sanitized = IBKRGateway._sanitize_quote_value(candidate)
+            if sanitized is not None:
+                return sanitized
         return None
 
     @staticmethod

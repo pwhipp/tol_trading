@@ -149,10 +149,12 @@ class TestIBKRGatewaySnapshotParsing(unittest.TestCase):
     def test_get_market_snapshot_sanitizes_negative_ask_value(self) -> None:
         gateway = IBKRGateway("paper", client_id=7)
         fake_ib = _FakeIBSnapshot(
-            _SnapshotTicker(last=49.02, bid=48.9, ask=-1)
+            _SnapshotTicker(last=-1, bid=-1, ask=-1)
         )
         gateway.ib = fake_ib
 
         snapshot = gateway.get_market_snapshot(contract=object())
 
+        self.assertIsNone(snapshot["price"])
+        self.assertIsNone(snapshot["bid"])
         self.assertIsNone(snapshot["ask"])
