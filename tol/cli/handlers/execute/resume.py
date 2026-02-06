@@ -19,7 +19,7 @@ def handle_execute_resume(args) -> None:
     mode = lookup_execution_mode(db_path, active_id)
     broker_api = get_broker_api(mode)
     config = get_config()
-    engine = ExecutionEngine(db_path, broker_api, tif=config.tif)
+    engine = ExecutionEngine(db_path, broker_api, tif=config.execution.tif)
     engine.advance_execution(active_id)
     status = engine.get_status(active_id)
     print(render_status(status))

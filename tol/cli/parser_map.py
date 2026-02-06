@@ -158,8 +158,15 @@ PARSER_MAP = [
                 handler=handle_config_get,
                 arguments=[
                     {
+                        "flags": ["category"],
+                        "kwargs": {"help": "Category name to retrieve"},
+                    },
+                    {
                         "flags": ["key"],
-                        "kwargs": {"help": "Setting name to retrieve"},
+                        "kwargs": {
+                            "nargs": "?",
+                            "help": "Optional setting name within the category",
+                        },
                     }
                 ],
             ),
@@ -168,6 +175,10 @@ PARSER_MAP = [
                 help="Set a configuration setting.",
                 handler=handle_config_set,
                 arguments=[
+                    {
+                        "flags": ["category"],
+                        "kwargs": {"help": "Category name to update"},
+                    },
                     {
                         "flags": ["key"],
                         "kwargs": {"help": "Setting name to update"},
@@ -205,7 +216,7 @@ PARSER_MAP = [
                         "flags": ["tickers"],
                         "kwargs": {
                             "nargs": "*",
-                            "help": "Ticker(s), optionally with .EXCHANGE suffix. Falls back to broker_watched_tickers.",
+                            "help": "Ticker(s), optionally with .EXCHANGE suffix. Falls back to broker.watched_tickers.",
                         },
                     },
                     {
@@ -213,7 +224,7 @@ PARSER_MAP = [
                         "kwargs": {
                             "choices": ("reset", "add"),
                             "default": "reset",
-                            "help": "Update broker_watched_tickers using reset or add mode",
+                            "help": "Update broker.watched_tickers using reset or add mode",
                         },
                     },
                 ],

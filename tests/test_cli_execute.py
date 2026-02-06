@@ -35,7 +35,7 @@ def _configure_fake_broker(monkeypatch, tmp_path: Path) -> Path:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     app_config.get_config.cache_clear()
     settings = app_config.get_config()
-    updated = app_config.set_setting(settings, "broker", "FakeBrokerAPI")
+    updated = app_config.set_setting(settings, "broker", "api", "FakeBrokerAPI")
     updated.save()
     return app_config.get_config_path().parent
 
