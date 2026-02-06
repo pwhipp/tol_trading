@@ -101,3 +101,54 @@ def test_resolve_raw_tickers_raises_when_no_sources() -> None:
         )
     else:
         raise AssertionError("Expected ValueError")
+
+
+class _GatewayStub:
+    last_instance = None
+
+    def __init__(self, mode: str, client_id: int) -> None:
+        self.mode = mode
+        self.client_id = client_id
+        self.calls: list[float] = []
+        _GatewayStub.last_instance = self
+
+    def connect(self) -> None:
+        return None
+
+    def disconnect(self) -> None:
+        return None
+
+    def qualify_stock_contract(self, _symbol: str):
+        return object()
+
+    def get_market_snapshot(self, _contract, settle_window: float = 0.0) -> dict:
+        self.calls.append(settle_window)
+        return {
+            "price": None,
+            "bid": None,
+            "ask": None,
+            "currency": "AUD",
+            "is_open": None,
+        }
+
+
+def test_handle_passes_configured_settle_window(monkeypatch) -> None:
+    args = Namespace(tickers=["BHP.ASX"], watch="reset")
+    config = _StubConfig(
+        broker=_Section(
+            api="IBKRBrokerAPI",
+            mode="paper",
+            client_id=1,
+            watched_tickers=[],
+            settle_window=0.3,
+        ),
+        execution=_Section(default_exchange="ASX"),
+    )
+
+    monkeypatch.setattr(broker_price, "get_config", lambda: config)
+    monkeypatch.setattr(broker_price, "IBKRGateway", _GatewayStub)
+
+    BrokerPriceHandler.handle(args)
+
+    assert _GatewayStub.last_instance is not None
+    assert _GatewayStub.last_instance.calls == [0.3]

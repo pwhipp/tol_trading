@@ -31,6 +31,7 @@ class BrokerPriceHandler:
             raise ValueError("tol broker price is only supported with IBKRBrokerAPI")
 
         gateway = IBKRGateway(config.broker.mode, config.broker.client_id)
+        settle_window = max(0.0, float(config.broker.settle_window))
         rows: list[list[str]] = []
 
         gateway.connect()
@@ -42,7 +43,10 @@ class BrokerPriceHandler:
                     rows.append([formatted_ticker, "-", "-", "-", "-", "-", "FAILED"])
                     continue
 
-                snapshot = gateway.get_market_snapshot(contract)
+                snapshot = gateway.get_market_snapshot(
+                    contract,
+                    settle_window=settle_window,
+                )
                 rows.append(
                     [
                         formatted_ticker,
