@@ -3,32 +3,36 @@
   "$id": "https://example.org/tol.schema.json",
   "title": "Trading Orchestration Language (TOL) v1",
   "type": "object",
-  "required": ["version", "mode", "actions"],
+  "required": [
+    "version",
+    "mode",
+    "actions"
+  ],
   "additionalProperties": false,
-
   "properties": {
     "version": {
       "type": "integer",
       "minimum": 1,
       "description": "TOL language version"
     },
-
     "mode": {
       "type": "string",
-      "enum": ["paper", "live"]
+      "enum": [
+        "paper",
+        "live"
+      ]
     },
-
     "actions": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/$defs/action" }
+      "items": {
+        "$ref": "#/$defs/action"
+      }
     },
-
     "broker": {
       "$ref": "#/$defs/broker"
     }
   },
-
   "$defs": {
     "ticker": {
       "type": "string",
@@ -36,91 +40,126 @@
       "pattern": "^[A-Z0-9]+\\.[A-Z0-9_]+$",
       "description": "Ticker symbol with exchange suffix (validated at runtime)"
     },
-
     "percent": {
       "type": "string",
       "pattern": "^(100|[1-9][0-9]?|0\\.[0-9]+)%$",
-      "description": "Percentage > 0% and ≤ 100%"
+      "description": "Percentage > 0% and \u2264 100%"
     },
-
     "money": {
       "type": "string",
-      "pattern": "^[$€£¥][0-9]+(,[0-9]{3})*(\\.[0-9]{1,2})? \\([A-Z]{3}\\)$",
+      "pattern": "^[$\u20ac\u00a3\u00a5][0-9]+(,[0-9]{3})*(\\.[0-9]{1,2})? \\([A-Z]{3}\\)$",
       "description": "Currency-denominated monetary value"
     },
-
     "cashSource": {
       "type": "string",
       "pattern": "^CASH \\([A-Z]{3}\\)$",
       "description": "Cash balance in a specific currency"
     },
-
     "sellActionRef": {
       "type": "string",
       "pattern": "^sell[A-Z0-9]+\\.[A-Z0-9_]+(_[0-9]+)?$",
       "description": "Derived identifier of a sell action"
     },
-
     "quantity": {
       "oneOf": [
-        { "type": "integer", "minimum": 1 },
-        { "$ref": "#/$defs/percent" },
-        { "$ref": "#/$defs/money" },
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "$ref": "#/$defs/percent"
+        },
+        {
+          "$ref": "#/$defs/money"
+        },
         {
           "type": "string",
-          "enum": ["ALL"]
+          "enum": [
+            "ALL"
+          ]
         }
       ]
     },
-
     "using": {
       "type": "array",
       "minItems": 1,
       "items": {
         "oneOf": [
-          { "$ref": "#/$defs/cashSource" },
-          { "$ref": "#/$defs/ticker" },
-          { "$ref": "#/$defs/sellActionRef" }
+          {
+            "$ref": "#/$defs/cashSource"
+          },
+          {
+            "$ref": "#/$defs/ticker"
+          },
+          {
+            "$ref": "#/$defs/sellActionRef"
+          }
         ]
-      },
-      "uniqueItems": true
+      }
     },
-
     "sellAction": {
       "type": "object",
-      "required": ["symbol", "quantity", "using"],
+      "required": [
+        "symbol",
+        "quantity",
+        "using"
+      ],
       "additionalProperties": false,
       "properties": {
-        "symbol": { "$ref": "#/$defs/ticker" },
-        "quantity": { "$ref": "#/$defs/quantity" }
+        "symbol": {
+          "$ref": "#/$defs/ticker"
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        }
       }
     },
-
     "buyAction": {
       "type": "object",
-      "required": ["symbol", "quantity"],
+      "required": [
+        "symbol",
+        "quantity"
+      ],
       "additionalProperties": false,
       "properties": {
-        "symbol": { "$ref": "#/$defs/ticker" },
-        "quantity": { "$ref": "#/$defs/quantity" },
-        "using": { "$ref": "#/$defs/using" }
+        "symbol": {
+          "$ref": "#/$defs/ticker"
+        },
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        },
+        "using": {
+          "$ref": "#/$defs/using"
+        }
       }
     },
-
     "targetAction": {
       "type": "object",
-      "required": ["symbol", "percent", "using"],
+      "required": [
+        "symbol",
+        "percent",
+        "using"
+      ],
       "additionalProperties": false,
       "properties": {
-        "symbol": { "$ref": "#/$defs/ticker" },
-        "percent": { "$ref": "#/$defs/percent" },
-        "using": { "$ref": "#/$defs/using" }
+        "symbol": {
+          "$ref": "#/$defs/ticker"
+        },
+        "percent": {
+          "$ref": "#/$defs/percent"
+        },
+        "using": {
+          "$ref": "#/$defs/using"
+        }
       }
     },
-
     "fxAction": {
       "type": "object",
-      "required": ["from", "to", "quantity"],
+      "required": [
+        "from",
+        "to",
+        "quantity"
+      ],
       "additionalProperties": false,
       "properties": {
         "from": {
@@ -131,54 +170,100 @@
           "type": "string",
           "pattern": "^[A-Z]{3}$"
         },
-        "quantity": { "$ref": "#/$defs/quantity" }
+        "quantity": {
+          "$ref": "#/$defs/quantity"
+        }
       }
     },
-
     "action": {
       "type": "object",
       "additionalProperties": false,
       "oneOf": [
-        { "required": ["sell"],   "properties": { "sell":   { "$ref": "#/$defs/sellAction" } } },
-        { "required": ["buy"],    "properties": { "buy":    { "$ref": "#/$defs/buyAction" } } },
-        { "required": ["target"], "properties": { "target": { "$ref": "#/$defs/targetAction" } } },
-        { "required": ["fx"], "properties": { "fx": { "$ref": "#/$defs/fxAction" } } }
+        {
+          "required": [
+            "sell"
+          ],
+          "properties": {
+            "sell": {
+              "$ref": "#/$defs/sellAction"
+            }
+          }
+        },
+        {
+          "required": [
+            "buy"
+          ],
+          "properties": {
+            "buy": {
+              "$ref": "#/$defs/buyAction"
+            }
+          }
+        },
+        {
+          "required": [
+            "target"
+          ],
+          "properties": {
+            "target": {
+              "$ref": "#/$defs/targetAction"
+            }
+          }
+        },
+        {
+          "required": [
+            "fx"
+          ],
+          "properties": {
+            "fx": {
+              "$ref": "#/$defs/fxAction"
+            }
+          }
+        }
       ]
     },
-
     "broker": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "execution": { "$ref": "#/$defs/executionPolicy" }
+        "execution": {
+          "$ref": "#/$defs/executionPolicy"
+        }
       }
     },
-
     "executionPolicy": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "target_percent": { "$ref": "#/$defs/percent" },
-        "partials": { "$ref": "#/$defs/executionPartials" },
+        "target_percent": {
+          "$ref": "#/$defs/percent"
+        },
+        "partials": {
+          "$ref": "#/$defs/executionPartials"
+        },
         "max_duration": {
           "type": "integer",
           "minimum": 1
         }
       }
     },
-
     "executionPartials": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "buy": { "$ref": "#/$defs/partialPolicy" },
-        "sell": { "$ref": "#/$defs/partialPolicy" }
+        "buy": {
+          "$ref": "#/$defs/partialPolicy"
+        },
+        "sell": {
+          "$ref": "#/$defs/partialPolicy"
+        }
       }
     },
-
     "partialPolicy": {
       "type": "string",
-      "enum": ["allow", "forbid"]
+      "enum": [
+        "allow",
+        "forbid"
+      ]
     }
   }
 }

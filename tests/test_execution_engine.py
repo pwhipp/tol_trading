@@ -222,3 +222,67 @@ def test_rejected_order_marks_execution_failed(tmp_path: Path) -> None:
     assert status.execution["status"] == "FAILED"
     assert status.actions[0]["status"] == "FAILED"
     assert status.orders[0]["status"] == "FAILED"
+
+
+def test_buy_order_uses_ordered_funding_plan(tmp_path: Path) -> None:
+    class CapturingBroker(BrokerAPI):
+        def __init__(self) -> None:
+            self.order_specs: list[dict] = []
+
+        def submit_order(self, order_spec: dict) -> OrderSubmission:
+            self.order_specs.append(order_spec)
+            return OrderSubmission(
+                broker_order_id="CAP-1",
+                trade={
+                    "order_id": "CAP-1",
+                    "status": "FILLED",
+                    "filled_qty": order_spec.get("quantity", 0),
+                    "avg_fill_price": 1.0,
+                },
+            )
+
+        def cancel_order(self, broker_order_id: str) -> None:
+            return None
+
+        def get_order_status(self, broker_order_id: str) -> OrderStatus:
+            return OrderStatus(status="FILLED", filled_qty=0)
+
+        def list_open_orders(self) -> list[str]:
+            return []
+
+        def list_open_order_details(self) -> list[dict]:
+            return []
+
+        def get_portfolio_snapshot(self) -> dict:
+            return {"market_open": True, "portfolio": {}}
+
+    tol_doc = {
+        "version": 1,
+        "mode": "paper",
+        "actions": [
+            {
+                "buy": {
+                    "symbol": "BHP.ASX",
+                    "quantity": 100,
+                    "using": ["CASH (AUD)", "CASH (USD)"],
+                }
+            }
+        ],
+    }
+
+    broker = CapturingBroker()
+    engine = ExecutionEngine(tmp_path / "engine.sqlite", broker)
+    execution_id = engine.start_execution(tol_doc, broker)
+    engine.advance_execution(execution_id)
+
+    assert len(broker.order_specs) == 1
+    funding_plan = broker.order_specs[0]["funding_plan"]
+    assert funding_plan["using"] == ["CASH (AUD)", "CASH (USD)"]
+    assert funding_plan["settlement_currency"] == "AUD"
+    assert funding_plan["inferred_fx"] == [
+        {
+            "from": "USD",
+            "to": "AUD",
+            "quantity": "AS_NEEDED",
+        }
+    ]

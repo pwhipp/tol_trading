@@ -13,6 +13,10 @@ Rules:
 - TARGET percent values must be strings with a trailing '%' symbol
   (e.g., "66%").
 - BUY and TARGET actions must always include a non-empty 'using' list.
+- Preserve the exact source order in 'using'; order defines funding priority.
 - If the funding source is not explicitly specified, default 'using' to
-  ["CASH(CCC)"] using the exchange settlement currency (derived from the ticker
+  ["CASH (CCC)"] using the exchange settlement currency (derived from the ticker
   suffix when available, otherwise the defaults provided in the context).
+- Do NOT generate explicit 'fx' actions unless the user clearly requests an
+  explicit conversion. Prefer multi-currency 'using' lists for implicit,
+  minimum-required FX during fulfillment.

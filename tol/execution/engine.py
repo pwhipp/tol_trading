@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -10,6 +11,7 @@ from typing import Any, Iterable
 from tol.execution.broker import BrokerAPI, OrderStatus
 from tol.parser.planner import plan_actions
 from tol.execution.store import ExecutionStore
+from tol.exchange import resolve_exchange_currency
 
 
 EXECUTION_ACTIVE = {"RUNNING", "SUSPENDED"}
@@ -206,6 +208,8 @@ class ExecutionEngine:
                 "symbol": action.symbol,
                 "quantity": float(quantity),
                 "tif": self._tif,
+                "using": list(action.using or []),
+                "funding_plan": _build_funding_plan(action),
             }
             try:
                 submission = broker_api.submit_order(order_spec)
@@ -315,3 +319,46 @@ def _resolve_action_status(submission_status: str) -> str:
 def _normalize_tif(tif: str | None) -> str:
     normalized = str(tif).strip().upper() if tif is not None else ""
     return normalized or "GTC"
+
+
+def _build_funding_plan(action: Any) -> dict[str, Any]:
+    using_sources = [source for source in (action.using or []) if isinstance(source, str)]
+    settlement_currency = _resolve_settlement_currency(action.symbol)
+    if not settlement_currency:
+        return {"using": using_sources, "inferred_fx": []}
+    inferred_fx = []
+    for source in using_sources:
+        cash_currency = _parse_cash_currency(source)
+        if not cash_currency or cash_currency == settlement_currency:
+            continue
+        inferred_fx.append(
+            {
+                "from": cash_currency,
+                "to": settlement_currency,
+                "quantity": "AS_NEEDED",
+            }
+        )
+    return {
+        "using": using_sources,
+        "settlement_currency": settlement_currency,
+        "inferred_fx": inferred_fx,
+    }
+
+
+def _resolve_settlement_currency(symbol: str | None) -> str | None:
+    if not isinstance(symbol, str) or "." not in symbol:
+        return None
+    _, exchange = symbol.rsplit(".", 1)
+    currency = resolve_exchange_currency(exchange)
+    if not currency:
+        return None
+    return currency.strip().upper()
+
+
+def _parse_cash_currency(source: str) -> str | None:
+    if not isinstance(source, str):
+        return None
+    match = re.fullmatch(r"CASH \(([A-Z]{3})\)", source.strip().upper())
+    if not match:
+        return None
+    return match.group(1)
