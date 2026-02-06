@@ -5,12 +5,12 @@ from tol.cli.handlers.helpers.execution import get_broker_api
 from tol.config import get_config
 
 
-def handle_portfolio_summary(args) -> None:
+def handle_broker_summary(args) -> None:
     del args
     config = get_config()
     broker_api = get_broker_api(config.mode)
 
-    print("TOL Portfolio Summary")
+    print("TOL Broker Summary")
     print("----------------------------------------")
     print(f"Trading mode: {config.mode}")
     print()
@@ -22,16 +22,16 @@ def handle_portfolio_summary(args) -> None:
     for position in positions:
         position_totals[position["currency"]] += position["market_value"]
 
-    portfolio_totals: defaultdict[str, Decimal] = defaultdict(Decimal)
+    broker_totals: defaultdict[str, Decimal] = defaultdict(Decimal)
     for currency, amount in cash_by_ccy.items():
-        portfolio_totals[currency] += amount
+        broker_totals[currency] += amount
     for currency, amount in position_totals.items():
-        portfolio_totals[currency] += amount
+        broker_totals[currency] += amount
 
     print("Cash:")
     for currency in sorted(cash_by_ccy):
         amount = cash_by_ccy[currency]
-        total = portfolio_totals[currency]
+        total = broker_totals[currency]
         print(f"  {currency}: {amount:>12,.2f}   {_pct(amount, total):>6}%")
 
     print()
@@ -41,7 +41,7 @@ def handle_portfolio_summary(args) -> None:
         quantity = position["quantity"]
         market_value = position["market_value"]
         currency = position["currency"]
-        total = portfolio_totals[currency]
+        total = broker_totals[currency]
 
         print(
             f"  {symbol:<5} {int(quantity):>6} shares   "
@@ -50,9 +50,9 @@ def handle_portfolio_summary(args) -> None:
 
     print()
     print("Positions value:")
-    for currency in sorted(portfolio_totals):
+    for currency in sorted(broker_totals):
         market_value = position_totals.get(currency, Decimal("0"))
-        total = portfolio_totals[currency]
+        total = broker_totals[currency]
         print(f"  {currency}: {market_value:>12,.2f}   {_pct(market_value, total):>6}%")
 
     print("----------------------------------------")

@@ -34,6 +34,7 @@ def test_load_settings_creates_default_file(
     assert settings.api_log_level == "INFO"
     assert settings.default_exchange is None
     assert settings.default_currency is None
+    assert settings.broker_watched_tickers == []
 
 
 def test_set_and_get_setting_round_trip(

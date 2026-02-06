@@ -157,23 +157,41 @@ class IBKRGateway:
 
     def get_market_snapshot(self, contract) -> dict:
         self.ib.reqMarketDataType(3)
-        ticker = self.ib.reqMktData(contract, "", False, False)
-        self.ib.sleep(1)
-        last = self._safe_decimal(getattr(ticker, "last", None))
-        close = self._safe_decimal(getattr(ticker, "close", None))
+        ticker = self.ib.reqMktData(contract, "", True, False)
+        for _ in range(25):
+            self.ib.sleep(0.2)
+            if self._extract_snapshot_price(ticker) is not None:
+                break
+
+        price = self._extract_snapshot_price(ticker)
         bid = self._safe_decimal(getattr(ticker, "bid", None))
         ask = self._safe_decimal(getattr(ticker, "ask", None))
-        price = last or close
+
         is_open = None
         if bid is not None and ask is not None:
             is_open = True
         elif price is not None:
             is_open = False
+
         return {
             "price": price,
+            "bid": bid,
+            "ask": ask,
             "currency": getattr(contract, "currency", "USD"),
             "is_open": is_open,
         }
+
+    @staticmethod
+    def _extract_snapshot_price(ticker) -> Decimal | None:
+        candidates = [
+            IBKRGateway._safe_decimal(getattr(ticker, "last", None)),
+            IBKRGateway._safe_decimal(getattr(ticker, "close", None)),
+            IBKRGateway._safe_decimal(getattr(ticker, "marketPrice", lambda: None)()),
+        ]
+        for candidate in candidates:
+            if candidate is not None:
+                return candidate
+        return None
 
     @staticmethod
     def _safe_decimal(value) -> Decimal | None:
@@ -186,6 +204,7 @@ class IBKRGateway:
         if math.isnan(numeric):
             return None
         return Decimal(str(value))
+
 
 def _split_ticker(symbol: str) -> tuple[str, str | None]:
     cleaned = symbol.strip().upper()

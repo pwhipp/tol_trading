@@ -15,19 +15,37 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.command, "execute")
         self.assertEqual(args.execute_command, "run")
 
-    def test_portfolio_summary_command_parsing(self) -> None:
+    def test_broker_summary_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["portfolio", "summary"])
+        args = parser.parse_args(["broker", "summary"])
 
-        self.assertEqual(args.command, "portfolio")
-        self.assertEqual(args.portfolio_command, "summary")
+        self.assertEqual(args.command, "broker")
+        self.assertEqual(args.broker_command, "summary")
 
-    def test_portfolio_orders_command_parsing(self) -> None:
+    def test_broker_orders_command_parsing(self) -> None:
         parser = build_parser()
-        args = parser.parse_args(["portfolio", "orders"])
+        args = parser.parse_args(["broker", "orders"])
 
-        self.assertEqual(args.command, "portfolio")
-        self.assertEqual(args.portfolio_command, "orders")
+        self.assertEqual(args.command, "broker")
+        self.assertEqual(args.broker_command, "orders")
+
+    def test_broker_price_command_parsing(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["broker", "price", "MSFT"])
+
+        self.assertEqual(args.command, "broker")
+        self.assertEqual(args.broker_command, "price")
+        self.assertEqual(args.tickers, ["MSFT"])
+        self.assertEqual(args.watch, "reset")
+
+    def test_broker_price_command_parsing_without_tickers(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["broker", "price"])
+
+        self.assertEqual(args.command, "broker")
+        self.assertEqual(args.broker_command, "price")
+        self.assertEqual(args.tickers, [])
+        self.assertEqual(args.watch, "reset")
 
     def test_execute_command_default_run(self) -> None:
         parser = build_parser()
