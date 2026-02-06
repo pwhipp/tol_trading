@@ -3,6 +3,7 @@ from tol.llm.client import (
     _format_api_error,
     _generate_system_message,
     _render_prompt,
+    _rewrite_implicit_fx_actions,
 )
 
 
@@ -99,6 +100,49 @@ def test_apply_llm_using_defaults_preserves_existing_using() -> None:
         document,
         default_exchange="NYSE",
         default_currency="USD",
+    )
+
+    assert updated == document
+
+
+
+def test_rewrite_implicit_fx_actions_merges_fx_into_buy_using() -> None:
+    document = {
+        "version": 1,
+        "mode": "paper",
+        "actions": [
+            {"fx": {"from": "USD", "to": "AUD", "quantity": "ALL"}},
+            {"buy": {"symbol": "BHP.ASX", "quantity": 100, "using": ["CASH (AUD)"]}},
+        ],
+    }
+
+    updated = _rewrite_implicit_fx_actions(
+        document,
+        "buy 100 BHP.ASX converting US cash as necessary beforehand",
+    )
+
+    assert updated["actions"] == [
+        {
+            "buy": {
+                "symbol": "BHP.ASX",
+                "quantity": 100,
+                "using": ["CASH (AUD)", "CASH (USD)"],
+            }
+        }
+    ]
+
+
+def test_rewrite_implicit_fx_actions_keeps_explicit_full_fx_request() -> None:
+    document = {
+        "actions": [
+            {"fx": {"from": "USD", "to": "AUD", "quantity": "ALL"}},
+            {"buy": {"symbol": "BHP.ASX", "quantity": 100, "using": ["CASH (AUD)"]}},
+        ]
+    }
+
+    updated = _rewrite_implicit_fx_actions(
+        document,
+        "convert all usd to aud then buy 100 BHP.ASX",
     )
 
     assert updated == document

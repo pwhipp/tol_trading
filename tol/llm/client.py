@@ -5,6 +5,7 @@ from functools import lru_cache
 import json
 import logging
 from pathlib import Path
+import re
 import time
 from typing import Any
 
@@ -118,6 +119,7 @@ class ChatGptClient:
             default_exchange=self._settings.default_exchange,
             default_currency=self._settings.default_currency,
         )
+        document = _rewrite_implicit_fx_actions(document, prompt_text)
         normalized = normalize_tol_document(document)
         return LlmDocumentResponse(
             document=normalized,
@@ -460,3 +462,117 @@ def _resolve_using_currency(
     if default_currency:
         return default_currency.strip().upper()
     return None
+
+
+def _rewrite_implicit_fx_actions(
+    document: dict[str, Any],
+    user_request: str,
+) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        return document
+    if _user_requested_explicit_full_fx(user_request):
+        return document
+    actions = document.get("actions")
+    if not isinstance(actions, list):
+        return document
+
+    rewritten_actions: list[Any] = []
+    idx = 0
+    changed = False
+    while idx < len(actions):
+        action = actions[idx]
+        fx_leg = _parse_fx_all_action(action)
+        next_action = actions[idx + 1] if idx + 1 < len(actions) else None
+        if fx_leg and isinstance(next_action, dict):
+            merged_action = _merge_fx_into_using(
+                next_action,
+                fx_leg["from"],
+                fx_leg["to"],
+            )
+            if merged_action is not None:
+                rewritten_actions.append(merged_action)
+                idx += 2
+                changed = True
+                continue
+        rewritten_actions.append(action)
+        idx += 1
+
+    if not changed:
+        return document
+    updated = dict(document)
+    updated["actions"] = rewritten_actions
+    return updated
+
+
+def _user_requested_explicit_full_fx(user_request: str) -> bool:
+    if not isinstance(user_request, str):
+        return False
+    request = user_request.strip().lower()
+    if not request:
+        return False
+    if re.search(r"\b(convert|conversion|exchange|fx)\b", request) is None:
+        return False
+    full_terms = (" all ", " entire ", " everything ", " full balance ")
+    padded = f" {request} "
+    return any(term in padded for term in full_terms)
+
+
+def _parse_fx_all_action(action: Any) -> dict[str, str] | None:
+    if not isinstance(action, dict) or len(action) != 1 or "fx" not in action:
+        return None
+    body = action.get("fx")
+    if not isinstance(body, dict):
+        return None
+    quantity = str(body.get("quantity", "")).strip().upper()
+    if quantity != "ALL":
+        return None
+    from_currency = _normalize_currency_code(body.get("from"))
+    to_currency = _normalize_currency_code(body.get("to"))
+    if not from_currency or not to_currency:
+        return None
+    if from_currency == to_currency:
+        return None
+    return {"from": from_currency, "to": to_currency}
+
+
+def _merge_fx_into_using(
+    action: dict[str, Any],
+    from_currency: str,
+    to_currency: str,
+) -> dict[str, Any] | None:
+    if len(action) != 1:
+        return None
+    action_type, body = next(iter(action.items()))
+    if action_type not in {"buy", "target"} or not isinstance(body, dict):
+        return None
+    using = body.get("using")
+    if not isinstance(using, list):
+        return None
+    normalized_using = [_normalize_cash_using_entry(source) for source in using]
+    target_entry = f"CASH ({to_currency})"
+    source_entry = f"CASH ({from_currency})"
+    if target_entry not in normalized_using:
+        return None
+    if source_entry in normalized_using:
+        return action
+    updated_body = dict(body)
+    updated_body["using"] = [*normalized_using, source_entry]
+    return {action_type: updated_body}
+
+
+def _normalize_currency_code(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip().upper()
+    if re.fullmatch(r"[A-Z]{3}", cleaned) is None:
+        return None
+    return cleaned
+
+
+def _normalize_cash_using_entry(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    match = re.fullmatch(r"\s*CASH\s*\(\s*([A-Za-z]{3})\s*\)\s*", value)
+    if not match:
+        return value
+    return f"CASH ({match.group(1).upper()})"
