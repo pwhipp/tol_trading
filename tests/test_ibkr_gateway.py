@@ -61,3 +61,47 @@ class TestIBKRGatewayConnect(unittest.TestCase):
             "111, 'Connect call failed')\n"
             "Make sure API port on TWS/IBG is open",
         )
+
+
+class _SnapshotTicker:
+    def __init__(
+        self,
+        last=None,
+        close=None,
+        bid=None,
+        ask=None,
+        market_price=None,
+    ) -> None:
+        self.last = last
+        self.close = close
+        self.bid = bid
+        self.ask = ask
+        self._market_price = market_price
+
+    def marketPrice(self):
+        return self._market_price
+
+
+class TestIBKRGatewaySnapshotParsing(unittest.TestCase):
+    def test_extract_snapshot_price_uses_market_price_fallback(self) -> None:
+        ticker = _SnapshotTicker(last=float("nan"), close=None, market_price=49.02)
+
+        price = IBKRGateway._extract_snapshot_price(ticker)
+
+        self.assertEqual(str(price), "49.02")
+
+    def test_extract_snapshot_marks_open_when_bid_ask_present(self) -> None:
+        ticker = _SnapshotTicker(last=None, close=None, bid=48.9, ask=49.1)
+
+        price, is_open = IBKRGateway._extract_snapshot(ticker)
+
+        self.assertIsNone(price)
+        self.assertTrue(is_open)
+
+    def test_extract_snapshot_marks_closed_when_price_without_bid_ask(self) -> None:
+        ticker = _SnapshotTicker(last=49.02, close=None, bid=None, ask=None)
+
+        price, is_open = IBKRGateway._extract_snapshot(ticker)
+
+        self.assertEqual(str(price), "49.02")
+        self.assertFalse(is_open)
