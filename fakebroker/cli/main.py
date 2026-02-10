@@ -44,8 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
     order_parser = subparsers.add_parser("order", help="Inspect or fill orders")
     order_sub = order_parser.add_subparsers(dest="order_command", required=True)
     order_sub.add_parser("list", help="List open orders")
-    order_fill = order_sub.add_parser("fill", help="Fill an order")
-    order_fill.add_argument("order_id", help="Broker order id (e.g. FB-1)")
+    order_fill = order_sub.add_parser("fill", help="Fill one or more orders")
+    order_fill.add_argument(
+        "order_ids",
+        nargs="+",
+        help="One or more broker order ids (e.g. FB-1 FB-2)",
+    )
     order_fill.add_argument(
         "--quantity",
         dest="quantity",

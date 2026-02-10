@@ -92,6 +92,17 @@ class FakeBrokerController:
         orders.sort(key=self._order_sort_key)
         return orders
 
+    def fill_orders(
+        self,
+        order_ids: list[str],
+        quantity: Decimal | None = None,
+    ) -> list[FillResult]:
+        sanitized_order_ids = self._sanitize_order_ids(order_ids)
+        results: list[FillResult] = []
+        for order_id in sanitized_order_ids:
+            results.append(self.fill_order(order_id, quantity))
+        return results
+
     def fill_order(self, order_id: str, quantity: Decimal | None = None) -> FillResult:
         state = self._state.load()
         orders = state.get("orders", {})
@@ -332,6 +343,13 @@ class FakeBrokerController:
             return value
         return Decimal(str(value).replace(",", "").strip())
 
+    @staticmethod
+    def _sanitize_order_ids(order_ids: list[str]) -> list[str]:
+        sanitized = [order_id.strip() for order_id in order_ids if order_id.strip()]
+        if not sanitized:
+            raise ValueError("At least one order id is required")
+        return sanitized
+
 
 def handle_fakebroker(args: Any) -> None:
     controller = FakeBrokerController(_resolve_state_path())
@@ -364,11 +382,12 @@ def handle_fakebroker(args: Any) -> None:
                 if args.quantity is not None
                 else None
             )
-            result = controller.fill_order(args.order_id, quantity)
-            print(
-                f"Filled {result.filled_qty} @ {result.price} {result.currency} "
-                f"for {result.order_id} ({result.status})."
-            )
+            results = controller.fill_orders(args.order_ids, quantity)
+            for result in results:
+                print(
+                    f"Filled {result.filled_qty} @ {result.price} {result.currency} "
+                    f"for {result.order_id} ({result.status})."
+                )
             return
         if args.order_command == "delete":
             deleted, missing = controller.delete_orders(args.order_ids)
