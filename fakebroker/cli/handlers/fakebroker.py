@@ -166,6 +166,20 @@ class FakeBrokerController:
         order["trade"] = trade
         self._state.save(state)
 
+    def delete_orders(self, order_ids: list[str]) -> tuple[list[str], list[str]]:
+        state = self._state.load()
+        orders = state.get("orders", {})
+        deleted: list[str] = []
+        missing: list[str] = []
+        for order_id in order_ids:
+            if order_id in orders:
+                del orders[order_id]
+                deleted.append(order_id)
+            else:
+                missing.append(order_id)
+        self._state.save(state)
+        return deleted, missing
+
     @staticmethod
     def _order_sort_key(item: dict[str, Any]) -> tuple[int, str]:
         action = str(item.get("action_type", "")).lower()
@@ -355,6 +369,13 @@ def handle_fakebroker(args: Any) -> None:
                 f"Filled {result.filled_qty} @ {result.price} {result.currency} "
                 f"for {result.order_id} ({result.status})."
             )
+            return
+        if args.order_command == "delete":
+            deleted, missing = controller.delete_orders(args.order_ids)
+            if deleted:
+                print(f"Deleted orders: {', '.join(deleted)}")
+            if missing:
+                print(f"Missing orders: {', '.join(missing)}")
             return
     if args.command == "fail":
         controller.fail_order(args.order_id, args.reason)

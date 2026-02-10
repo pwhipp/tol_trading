@@ -31,6 +31,7 @@ CONFIG_SCHEMA: dict[str, Any] = {
         "client_id": {"default": 11, "parser": int},
         "timeout_seconds": {"default": 30.0, "parser": float},
         "settle_window": {"default": 0.3, "parser": float},
+        "spread_pct": {"default": 0.0, "parser": float},
         "watched_tickers": {"default": [], "parser": list},
     },
     "llm": {
@@ -281,6 +282,12 @@ def _normalize_value(
         if settle_window < 0:
             raise ValueError("settle_window must be >= 0")
         return settle_window
+
+    if path == ("broker", "spread_pct"):
+        spread_pct = float(value)
+        if spread_pct < 0:
+            raise ValueError("spread_pct must be >= 0")
+        return spread_pct
 
     if path in _PATH_KEYS:
         return Path(value) if value else None

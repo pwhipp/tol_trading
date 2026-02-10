@@ -3,10 +3,12 @@ from __future__ import annotations
 from argparse import Namespace
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any
 
 from tabulate import tabulate
 
-from tol.config import get_config
+from tol.config import get_config, get_config_path
+from tol.execution.broker.implementations.FakeBrokerAPI import FakeBrokerState
 from tol.ibkr.gateway import IBKRGateway
 
 
@@ -27,9 +29,34 @@ class BrokerPriceHandler:
         )
         BrokerPriceHandler._persist_watched_tickers(config, tickers, args.watch)
 
-        if config.broker.api != "IBKRBrokerAPI":
-            raise ValueError("tol broker price is only supported with IBKRBrokerAPI")
+        rows = BrokerPriceHandler._build_rows(config, tickers)
 
+        print(
+            tabulate(
+                rows,
+                headers=[
+                    "Ticker",
+                    "Price",
+                    "Bid",
+                    "Ask",
+                    "Currency",
+                    "Market Open",
+                    "Status",
+                ],
+                tablefmt="github",
+            )
+        )
+
+    @staticmethod
+    def _build_rows(config, tickers: list[BrokerTicker]) -> list[list[str]]:
+        if config.broker.api == "IBKRBrokerAPI":
+            return BrokerPriceHandler._build_ibkr_rows(config, tickers)
+        if config.broker.api == "FakeBrokerAPI":
+            return BrokerPriceHandler._build_fakebroker_rows(config, tickers)
+        raise ValueError(f"Unsupported broker api: {config.broker.api}")
+
+    @staticmethod
+    def _build_ibkr_rows(config, tickers: list[BrokerTicker]) -> list[list[str]]:
         gateway = IBKRGateway(config.broker.mode, config.broker.client_id)
         settle_window = max(0.0, float(config.broker.settle_window))
         rows: list[list[str]] = []
@@ -47,35 +74,65 @@ class BrokerPriceHandler:
                     contract,
                     settle_window=settle_window,
                 )
-                rows.append(
-                    [
-                        formatted_ticker,
-                        BrokerPriceHandler._sanitize_decimal(snapshot.get("price")),
-                        BrokerPriceHandler._sanitize_decimal(snapshot.get("bid")),
-                        BrokerPriceHandler._sanitize_decimal(snapshot.get("ask")),
-                        str(snapshot.get("currency") or "-"),
-                        BrokerPriceHandler._format_market_open(snapshot.get("is_open")),
-                        "OK",
-                    ]
-                )
+                rows.append(BrokerPriceHandler._snapshot_row(formatted_ticker, snapshot))
         finally:
             gateway.disconnect()
+        return rows
 
-        print(
-            tabulate(
-                rows,
-                headers=[
-                    "Ticker",
-                    "Price",
-                    "Bid",
-                    "Ask",
-                    "Currency",
-                    "Market Open",
-                    "Status",
-                ],
-                tablefmt="github",
+    @staticmethod
+    def _build_fakebroker_rows(config, tickers: list[BrokerTicker]) -> list[list[str]]:
+        state_manager = FakeBrokerState(get_config_path().parent / "fake_broker_state.yaml")
+        state = state_manager.load()
+        spread_pct = max(0.0, float(config.broker.spread_pct))
+        rows: list[list[str]] = []
+        for ticker in tickers:
+            formatted_ticker = f"{ticker.symbol}.{ticker.exchange}"
+            snapshot = BrokerPriceHandler._fakebroker_snapshot(
+                state_manager=state_manager,
+                state=state,
+                formatted_ticker=formatted_ticker,
+                spread_pct=spread_pct,
             )
-        )
+            rows.append(BrokerPriceHandler._snapshot_row(formatted_ticker, snapshot))
+        return rows
+
+    @staticmethod
+    def _fakebroker_snapshot(
+        state_manager: FakeBrokerState,
+        state: dict[str, Any],
+        formatted_ticker: str,
+        spread_pct: float,
+    ) -> dict[str, Any]:
+        price, currency = state_manager.resolve_price(state, formatted_ticker)
+        _, exchange = FakeBrokerState.split_symbol(formatted_ticker)
+        is_open = not state_manager.is_market_closed(state, exchange)
+        if not is_open:
+            bid = Decimal("-1")
+            ask = Decimal("-1")
+        else:
+            spread = Decimal(str(spread_pct))
+            half = spread / Decimal("2")
+            bid = price * (Decimal("1") - half)
+            ask = price * (Decimal("1") + half)
+        return {
+            "price": price,
+            "bid": bid,
+            "ask": ask,
+            "currency": currency,
+            "is_open": is_open,
+        }
+
+    @staticmethod
+    def _snapshot_row(formatted_ticker: str, snapshot: dict[str, Any]) -> list[str]:
+        return [
+            formatted_ticker,
+            BrokerPriceHandler._sanitize_decimal(snapshot.get("price")),
+            BrokerPriceHandler._sanitize_decimal(snapshot.get("bid")),
+            BrokerPriceHandler._sanitize_decimal(snapshot.get("ask")),
+            str(snapshot.get("currency") or "-"),
+            BrokerPriceHandler._format_market_open(snapshot.get("is_open")),
+            "OK",
+        ]
 
     @staticmethod
     def _resolve_raw_tickers(args: Namespace, config, watch_mode: str) -> list[str]:

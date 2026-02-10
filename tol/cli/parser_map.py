@@ -49,18 +49,6 @@ PARSER_MAP = [
                 name="run",
                 help="Execute a TOL orchestration from stdin.",
                 handler=handle_execute_run,
-                arguments=[
-                    {
-                        "flags": ["--dry-run"],
-                        "kwargs": {
-                            "action": "store_true",
-                            "help": (
-                                "Preview the orders that would be submitted "
-                                "without executing or persisting state."
-                            ),
-                        },
-                    }
-                ],
             ),
             ParserCommand(
                 name="status",

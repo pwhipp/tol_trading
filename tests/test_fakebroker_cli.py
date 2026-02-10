@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from fakebroker.cli.handlers.fakebroker import FakeBrokerController
+from fakebroker.cli.main import build_parser
 from tol.execution.broker.implementations.FakeBrokerAPI import (
     FakeBrokerAPI,
     FakeBrokerState,
@@ -75,3 +76,31 @@ def test_fakebroker_fill_buy_clamps_to_cash(tmp_path):
             "currency": "USD",
         }
     ]
+
+
+def test_fakebroker_order_delete_removes_matching_ids(tmp_path):
+    state_path = tmp_path / "fake_broker_state.yaml"
+    state_manager = FakeBrokerState(state_path)
+    state = state_manager.default_state()
+    state["orders"] = {
+        "FB-1": {"status": "SUBMITTED", "trade": {}},
+        "FB-2": {"status": "SUBMITTED", "trade": {}},
+    }
+    state_manager.save(state)
+
+    controller = FakeBrokerController(state_path)
+    deleted, missing = controller.delete_orders(["FB-1", "FB-3"])
+
+    updated = state_manager.load()
+    assert deleted == ["FB-1"]
+    assert missing == ["FB-3"]
+    assert "FB-1" not in updated["orders"]
+    assert "FB-2" in updated["orders"]
+
+
+def test_fakebroker_parser_supports_order_delete() -> None:
+    args = build_parser().parse_args(["order", "delete", "FB-1", "FB-2"])
+
+    assert args.command == "order"
+    assert args.order_command == "delete"
+    assert args.order_ids == ["FB-1", "FB-2"]

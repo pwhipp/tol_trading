@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from argparse import Namespace
+from decimal import Decimal
 
 from tol.cli.handlers.broker import price as broker_price
 from tol.cli.handlers.broker.price import BrokerPriceHandler
@@ -53,21 +54,27 @@ def test_persist_watched_tickers_reset_and_add_modes() -> None:
     assert config["broker"]["watched_tickers"] == ["MSFT.NYSE", "AAPL.NASDAQ"]
 
 
-def test_handle_rejects_non_ibkr_broker(monkeypatch) -> None:
+def test_handle_supports_fakebroker_api(monkeypatch) -> None:
     args = Namespace(tickers=["MSFT"], watch="reset")
     config = _StubConfig(
-        broker=_Section(api="FakeBrokerAPI", mode="paper", client_id=1, watched_tickers=[]),
+        broker=_Section(
+            api="FakeBrokerAPI",
+            mode="paper",
+            client_id=1,
+            watched_tickers=[],
+            spread_pct=0.02,
+        ),
         execution=_Section(default_exchange="NYSE"),
     )
 
     monkeypatch.setattr(broker_price, "get_config", lambda: config)
+    monkeypatch.setattr(
+        BrokerPriceHandler,
+        "_build_fakebroker_rows",
+        staticmethod(lambda _config, _tickers: [["MSFT.NYSE", "1", "1", "1", "USD", "yes", "OK"]]),
+    )
 
-    try:
-        BrokerPriceHandler.handle(args)
-    except ValueError as exc:
-        assert str(exc) == "tol broker price is only supported with IBKRBrokerAPI"
-    else:
-        raise AssertionError("Expected ValueError")
+    BrokerPriceHandler.handle(args)
 
 
 def test_resolve_raw_tickers_prefers_cli_values() -> None:
@@ -165,3 +172,49 @@ def test_handle_passes_configured_settle_window(monkeypatch) -> None:
 
 def test_sanitize_decimal_uses_negative_one_for_unknown() -> None:
     assert BrokerPriceHandler._sanitize_decimal(None) == "-1"
+
+
+def test_fakebroker_snapshot_uses_spread_when_market_open() -> None:
+    class _State:
+        @staticmethod
+        def resolve_price(_state, _ticker):
+            return Decimal("100"), "USD"
+
+        @staticmethod
+        def is_market_closed(_state, _exchange):
+            return False
+
+    snapshot = BrokerPriceHandler._fakebroker_snapshot(
+        state_manager=_State(),
+        state={},
+        formatted_ticker="NVDA.NASDAQ",
+        spread_pct=0.1,
+    )
+
+    assert snapshot["price"] == Decimal("100")
+    assert snapshot["bid"] == Decimal("95.0")
+    assert snapshot["ask"] == Decimal("105.0")
+    assert snapshot["is_open"] is True
+
+
+def test_fakebroker_snapshot_uses_negative_one_bid_ask_when_market_closed() -> None:
+    class _State:
+        @staticmethod
+        def resolve_price(_state, _ticker):
+            return Decimal("100"), "USD"
+
+        @staticmethod
+        def is_market_closed(_state, _exchange):
+            return True
+
+    snapshot = BrokerPriceHandler._fakebroker_snapshot(
+        state_manager=_State(),
+        state={},
+        formatted_ticker="NVDA.NASDAQ",
+        spread_pct=0.1,
+    )
+
+    assert snapshot["price"] == Decimal("100")
+    assert snapshot["bid"] == Decimal("-1")
+    assert snapshot["ask"] == Decimal("-1")
+    assert snapshot["is_open"] is False

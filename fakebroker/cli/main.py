@@ -51,6 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="quantity",
         help="Optional fill quantity",
     )
+    order_delete = order_sub.add_parser("delete", help="Delete one or more orders")
+    order_delete.add_argument(
+        "order_ids",
+        nargs="+",
+        help="One or more broker order ids (e.g. FB-1 FB-2)",
+    )
 
     fail_parser = subparsers.add_parser("fail", help="Fail an order")
     fail_parser.add_argument("order_id", help="Broker order id (e.g. FB-1)")

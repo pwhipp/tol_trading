@@ -54,14 +54,6 @@ class TestCliMain(unittest.TestCase):
         self.assertEqual(args.command, "execute")
         self.assertEqual(args.execute_command, "run")
 
-    def test_execute_run_dry_run_flag_parsing(self) -> None:
-        parser = build_parser()
-        args = parser.parse_args(["execute", "run", "--dry-run"])
-
-        self.assertEqual(args.command, "execute")
-        self.assertEqual(args.execute_command, "run")
-        self.assertTrue(args.dry_run)
-
     def test_execute_help_mentions_stdin(self) -> None:
         parser = build_parser()
         subparsers_action = next(
