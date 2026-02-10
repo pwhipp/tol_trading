@@ -98,6 +98,67 @@ def test_fakebroker_order_delete_removes_matching_ids(tmp_path):
     assert "FB-2" in updated["orders"]
 
 
+def test_fakebroker_fill_orders_supports_multiple_ids(tmp_path):
+    state_path = tmp_path / "fake_broker_state.yaml"
+    state_manager = FakeBrokerState(state_path)
+    state = state_manager.default_state()
+    state["portfolio"]["cash"]["USD"] = 10000
+    state["prices"]["NVDA.NASDAQ"] = {"price": 100, "currency": "USD"}
+    state["orders"] = {
+        "FB-1": {
+            "status": "SUBMITTED",
+            "submitted_qty": 2.0,
+            "filled_qty": 0.0,
+            "average_price": None,
+            "failure_reason": None,
+            "trade": {
+                "order_id": "FB-1",
+                "status": "SUBMITTED",
+                "filled_qty": 0.0,
+                "avg_fill_price": None,
+                "action_type": "buy",
+                "symbol": "NVDA.NASDAQ",
+                "submitted_qty": 2.0,
+                "order_type": "MKT",
+            },
+        },
+        "FB-2": {
+            "status": "SUBMITTED",
+            "submitted_qty": 3.0,
+            "filled_qty": 0.0,
+            "average_price": None,
+            "failure_reason": None,
+            "trade": {
+                "order_id": "FB-2",
+                "status": "SUBMITTED",
+                "filled_qty": 0.0,
+                "avg_fill_price": None,
+                "action_type": "buy",
+                "symbol": "NVDA.NASDAQ",
+                "submitted_qty": 3.0,
+                "order_type": "MKT",
+            },
+        },
+    }
+    state_manager.save(state)
+
+    controller = FakeBrokerController(state_path)
+    results = controller.fill_orders(["FB-1", "FB-2"])
+
+    updated = state_manager.load()
+    assert [result.order_id for result in results] == ["FB-1", "FB-2"]
+    assert updated["orders"]["FB-1"]["status"] == "FILLED"
+    assert updated["orders"]["FB-2"]["status"] == "FILLED"
+
+
+def test_fakebroker_parser_supports_order_fill_multiple_ids() -> None:
+    args = build_parser().parse_args(["order", "fill", "FB-1", "FB-2"])
+
+    assert args.command == "order"
+    assert args.order_command == "fill"
+    assert args.order_ids == ["FB-1", "FB-2"]
+
+
 def test_fakebroker_parser_supports_order_delete() -> None:
     args = build_parser().parse_args(["order", "delete", "FB-1", "FB-2"])
 
