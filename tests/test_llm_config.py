@@ -117,3 +117,14 @@ def test_settle_window_must_be_non_negative(
 
     with pytest.raises(ValueError, match="settle_window must be >= 0"):
         set_setting(settings, "broker", "settle_window", "-0.1")
+
+
+def test_spread_pct_must_be_non_negative(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    get_config.cache_clear()
+    settings = get_config()
+
+    with pytest.raises(ValueError, match="spread_pct must be >= 0"):
+        set_setting(settings, "broker", "spread_pct", "-0.1")
